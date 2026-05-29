@@ -7,7 +7,14 @@ use regex::Regex;
 use crate::config::{Config, canonicalize_path};
 use crate::errors::{AgentCliError, ErrorCode};
 
-pub const VALID_SERVICES: &[&str] = &["copilot", "jules"];
+pub const VALID_SERVICES: &[&str] = &[
+    "copilot",
+    "jules",
+    "gemini",
+    "codex",
+    "opencode",
+    "claude",
+];
 pub const VALID_MODES: &[&str] = &[
     "prompt",
     "interactive",
@@ -453,6 +460,10 @@ mod tests {
     fn test_validate_service() {
         assert!(validate_service("copilot").is_ok());
         assert!(validate_service("jules").is_ok());
+        assert!(validate_service("gemini").is_ok());
+        assert!(validate_service("codex").is_ok());
+        assert!(validate_service("opencode").is_ok());
+        assert!(validate_service("claude").is_ok());
         assert!(validate_service("invalid_service").is_err());
     }
 

@@ -85,11 +85,27 @@ pub struct JulesCapabilities {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ExecutorCapabilities {
+    pub installed: bool,
+    pub version: Option<String>,
+    pub notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CapabilityResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub copilot: Option<CopilotCapabilities>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub jules: Option<JulesCapabilities>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gemini: Option<ExecutorCapabilities>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub codex: Option<ExecutorCapabilities>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub opencode: Option<ExecutorCapabilities>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub claude: Option<ExecutorCapabilities>,
     pub probe_timestamp: String,
 }
 
@@ -100,6 +116,46 @@ struct CapabilityCache {
 
 static CAPABILITY_CACHE: Mutex<Option<CapabilityCache>> = Mutex::new(None);
 const CACHE_TTL: Duration = Duration::from_secs(5 * 60);
+
+/// Resolve the configured binary path for a given service name.
+pub fn resolve_binary<'a>(service: &str, config: &'a Config) -> &'a str {
+    match service {
+        "copilot" => &config.copilot_bin,
+        "jules" => &config.jules_bin,
+        "gemini" => &config.gemini_bin,
+        "codex" => &config.codex_bin,
+        "opencode" => &config.opencode_bin,
+        "claude" => &config.claude_bin,
+        "gh" => &config.gh_bin,
+        _ => "unknown",
+    }
+}
+
+async fn probe_generic_executor(bin: &str) -> ExecutorCapabilities {
+    let ver_res = spawn_for_capability(bin, &[String::from("--version")], 10000).await;
+    let (installed, version_output) = match ver_res {
+        Ok((success, output)) => (success || !output.is_empty(), Some(output)),
+        Err(_) => (false, None),
+    };
+
+    if !installed {
+        return ExecutorCapabilities {
+            installed: false,
+            version: None,
+            notes: vec![format!("Binary not found or not executable: {}", bin)],
+        };
+    }
+
+    let version = version_output
+        .map(|o| o.lines().next().unwrap_or("").trim().to_string())
+        .filter(|v| !v.is_empty());
+
+    ExecutorCapabilities {
+        installed: true,
+        version,
+        notes: vec![],
+    }
+}
 
 pub async fn discover_capabilities(
     service: &str,
@@ -112,18 +168,21 @@ pub async fn discover_capabilities(
             if c.timestamp.elapsed() < CACHE_TTL {
                 if service == "all" {
                     return Ok(c.result.clone());
-                } else if service == "copilot" && c.result.copilot.is_some() {
-                    return Ok(CapabilityResult {
-                        copilot: c.result.copilot.clone(),
-                        jules: None,
-                        probe_timestamp: c.result.probe_timestamp.clone(),
-                    });
-                } else if service == "jules" && c.result.jules.is_some() {
-                    return Ok(CapabilityResult {
-                        copilot: None,
-                        jules: c.result.jules.clone(),
-                        probe_timestamp: c.result.probe_timestamp.clone(),
-                    });
+                }
+                // Return single-service filtered view from cache
+                let mut filtered = CapabilityResult {
+                    copilot: None, jules: None,
+                    gemini: None, codex: None, opencode: None, claude: None,
+                    probe_timestamp: c.result.probe_timestamp.clone(),
+                };
+                match service {
+                    "copilot" if c.result.copilot.is_some() => { filtered.copilot = c.result.copilot.clone(); return Ok(filtered); }
+                    "jules" if c.result.jules.is_some() => { filtered.jules = c.result.jules.clone(); return Ok(filtered); }
+                    "gemini" if c.result.gemini.is_some() => { filtered.gemini = c.result.gemini.clone(); return Ok(filtered); }
+                    "codex" if c.result.codex.is_some() => { filtered.codex = c.result.codex.clone(); return Ok(filtered); }
+                    "opencode" if c.result.opencode.is_some() => { filtered.opencode = c.result.opencode.clone(); return Ok(filtered); }
+                    "claude" if c.result.claude.is_some() => { filtered.claude = c.result.claude.clone(); return Ok(filtered); }
+                    _ => {} // Cache miss for this service, fall through to probe
                 }
             }
         }
@@ -132,6 +191,10 @@ pub async fn discover_capabilities(
     let mut result = CapabilityResult {
         copilot: None,
         jules: None,
+        gemini: None,
+        codex: None,
+        opencode: None,
+        claude: None,
         probe_timestamp: Utc::now().to_rfc3339(),
     };
 
@@ -141,15 +204,29 @@ pub async fn discover_capabilities(
     if service == "jules" || service == "all" {
         result.jules = Some(probe_jules(&config.jules_bin, config).await);
     }
+    if service == "gemini" || service == "all" {
+        result.gemini = Some(probe_generic_executor(&config.gemini_bin).await);
+    }
+    if service == "codex" || service == "all" {
+        result.codex = Some(probe_generic_executor(&config.codex_bin).await);
+    }
+    if service == "opencode" || service == "all" {
+        result.opencode = Some(probe_generic_executor(&config.opencode_bin).await);
+    }
+    if service == "claude" || service == "all" {
+        result.claude = Some(probe_generic_executor(&config.claude_bin).await);
+    }
 
     let mut cache = CAPABILITY_CACHE.lock().unwrap();
     let updated_result = if let Some(ref mut c) = *cache {
-        if service == "copilot" {
-            c.result.copilot = result.copilot.clone();
-        } else if service == "jules" {
-            c.result.jules = result.jules.clone();
-        } else {
-            c.result = result.clone();
+        match service {
+            "copilot" => c.result.copilot = result.copilot.clone(),
+            "jules" => c.result.jules = result.jules.clone(),
+            "gemini" => c.result.gemini = result.gemini.clone(),
+            "codex" => c.result.codex = result.codex.clone(),
+            "opencode" => c.result.opencode = result.opencode.clone(),
+            "claude" => c.result.claude = result.claude.clone(),
+            _ => c.result = result.clone(), // "all"
         }
         c.timestamp = Instant::now();
         c.result.clone()
@@ -513,6 +590,41 @@ pub async fn executor_health(
         }
     }
 
+    // Generic executor health for Gemini, Codex, OpenCode, Claude
+    for (svc_name, cap_opt) in [
+        ("gemini", caps.gemini),
+        ("codex", caps.codex),
+        ("opencode", caps.opencode),
+        ("claude", caps.claude),
+    ] {
+        if service != svc_name && service != "all" {
+            continue;
+        }
+        if let Some(exec_cap) = cap_opt {
+            if !exec_cap.installed {
+                results.push(ExecutorHealthResult {
+                    service: svc_name.to_string(),
+                    status: "unavailable".to_string(),
+                    affected_capabilities: vec!["prompt".to_string(), "file-edit".to_string()],
+                    reason: exec_cap.notes.first().cloned(),
+                    last_failure: None,
+                    safe_profiles_available: vec![],
+                    recommended_fallback: Some("copilot".to_string()),
+                });
+            } else {
+                results.push(ExecutorHealthResult {
+                    service: svc_name.to_string(),
+                    status: "healthy".to_string(),
+                    affected_capabilities: vec![],
+                    reason: None,
+                    last_failure: None,
+                    safe_profiles_available: vec!["cli".to_string()],
+                    recommended_fallback: None,
+                });
+            }
+        }
+    }
+
     Ok(json!({ "results": results }))
 }
 
@@ -723,7 +835,7 @@ pub async fn execute_run(
         }
     }
 
-    let bin = if args.service == "copilot" { &config.copilot_bin } else { &config.jules_bin };
+    let bin = resolve_binary(&args.service, config);
 
     if args.dry_run.unwrap_or(false) {
         return Ok(json!({
@@ -873,7 +985,7 @@ pub async fn start_run(
         }
     }
 
-    let bin = if args.service == "copilot" { &config.copilot_bin } else { &config.jules_bin };
+    let bin = resolve_binary(&args.service, config);
 
     let run_id = generate_run_id();
     let (stdout_log, stderr_log) = store.allocate_log_paths(&run_id).map_err(|e| {
@@ -984,7 +1096,7 @@ pub async fn start_session(
 
     validate_argv(&args.argv)?;
 
-    let bin = if args.service == "copilot" { &config.copilot_bin } else { &config.jules_bin };
+    let bin = resolve_binary(&args.service, config);
     let run_id = generate_run_id();
     let (stdout_log, stderr_log) = store.allocate_log_paths(&run_id).unwrap();
 
@@ -1669,10 +1781,11 @@ pub async fn run_binary_scoped(
     config: &Config,
     store: &Store,
 ) -> Result<serde_json::Value, AgentCliError> {
-    if args.service != "copilot" && args.service != "jules" && args.service != "gh" {
+    let allowed_scoped = ["copilot", "jules", "gh", "gemini", "codex", "opencode", "claude"];
+    if !allowed_scoped.contains(&args.service.as_str()) {
         return Err(AgentCliError::new(
             ErrorCode::InvalidService,
-            "Invalid service for run_binary_scoped. Allowed: copilot, jules, gh",
+            &format!("Invalid service for run_binary_scoped. Allowed: {}", allowed_scoped.join(", ")),
         ));
     }
 
@@ -1690,11 +1803,7 @@ pub async fn run_binary_scoped(
         binary_args.insert(0, "--dry-run".to_string());
     }
 
-    let bin = match args.service.as_str() {
-        "copilot" => &config.copilot_bin,
-        "jules" => &config.jules_bin,
-        _ => &config.gh_bin,
-    };
+    let bin = resolve_binary(&args.service, config);
 
     let run_id = generate_run_id();
     let (stdout_log, stderr_log) = store.allocate_log_paths(&run_id).unwrap();

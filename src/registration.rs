@@ -258,11 +258,11 @@ pub fn register_all(
     let c = config.clone();
     server.register_tool(
         "agent_cli.capabilities",
-        "Probe installed Copilot and/or Jules CLIs to discover supported flags.",
+        "Probe installed CLIs to discover supported flags and versions.",
         json!({
             "type": "object",
             "properties": {
-                "service": { "type": "string", "enum": ["copilot", "jules", "all"], "default": "all" },
+                "service": { "type": "string", "enum": ["copilot", "jules", "gemini", "codex", "opencode", "claude", "all"], "default": "all" },
                 "refresh": { "type": "boolean", "default": false }
             }
         }),
@@ -281,11 +281,11 @@ pub fn register_all(
     let c = config.clone();
     server.register_tool(
         "agent_cli.executor_health",
-        "Check whether Copilot CLI and/or Jules are installed and healthy.",
+        "Check whether executor CLIs are installed and healthy.",
         json!({
             "type": "object",
             "properties": {
-                "service": { "type": "string", "enum": ["copilot", "jules", "all"], "default": "all" }
+                "service": { "type": "string", "enum": ["copilot", "jules", "gemini", "codex", "opencode", "claude", "all"], "default": "all" }
             }
         }),
         move |args| {
@@ -306,7 +306,7 @@ pub fn register_all(
         json!({
             "type": "object",
             "properties": {
-                "service": { "type": "string", "enum": ["copilot", "jules", "all"], "default": "all" },
+                "service": { "type": "string", "enum": ["copilot", "jules", "gemini", "codex", "opencode", "claude", "all"], "default": "all" },
                 "profile": { "type": "string" }
             },
             "required": ["profile"]
@@ -329,11 +329,11 @@ pub fn register_all(
     let s = store.clone();
     server.register_tool(
         "agent_cli.run",
-        "Dispatch a one-shot executor run via Copilot CLI or Jules CLI.",
+        "Dispatch a one-shot executor run via any supported CLI.",
         json!({
             "type": "object",
             "properties": {
-                "service": { "type": "string", "enum": ["copilot", "jules"] },
+                "service": { "type": "string", "enum": ["copilot", "jules", "gemini", "codex", "opencode", "claude"] },
                 "mode": { "type": "string" },
                 "cwd": { "type": "string" },
                 "prompt": { "type": "string" },
@@ -364,7 +364,7 @@ pub fn register_all(
         json!({
             "type": "object",
             "properties": {
-                "service": { "type": "string", "enum": ["copilot", "jules"] },
+                "service": { "type": "string", "enum": ["copilot", "jules", "gemini", "codex", "opencode", "claude"] },
                 "mode": { "type": "string" },
                 "cwd": { "type": "string" },
                 "prompt": { "type": "string" },
@@ -396,7 +396,7 @@ pub fn register_all(
         json!({
             "type": "object",
             "properties": {
-                "service": { "type": "string", "enum": ["copilot", "jules"] },
+                "service": { "type": "string", "enum": ["copilot", "jules", "gemini", "codex", "opencode", "claude"] },
                 "mode": { "type": "string" },
                 "cwd": { "type": "string" },
                 "prompt": { "type": "string" },
@@ -429,7 +429,7 @@ pub fn register_all(
         json!({
             "type": "object",
             "properties": {
-                "service": { "type": "string", "enum": ["copilot", "jules"] },
+                "service": { "type": "string", "enum": ["copilot", "jules", "gemini", "codex", "opencode", "claude"] },
                 "cwd": { "type": "string" },
                 "argv": { "type": "array", "items": { "type": "string" } }
             },
@@ -511,7 +511,7 @@ pub fn register_all(
         json!({
             "type": "object",
             "properties": {
-                "service": { "type": "string", "enum": ["copilot", "jules", "all"] },
+                "service": { "type": "string", "enum": ["copilot", "jules", "gemini", "codex", "opencode", "claude", "all"] },
                 "status": { "type": "string", "enum": ["running", "complete", "failed", "killed", "all"] },
                 "limit": { "type": "integer" }
             }
@@ -903,7 +903,7 @@ pub fn register_all(
         json!({
             "type": "object",
             "properties": {
-                "service": { "type": "string", "enum": ["copilot", "jules", "gh"] },
+                "service": { "type": "string", "enum": ["copilot", "jules", "gh", "gemini", "codex", "opencode", "claude"] },
                 "cwd": { "type": "string" },
                 "argv": { "type": "array", "items": { "type": "string" } },
                 "sandboxLevel": { "type": "string", "enum": ["target-repo", "isolated-worktree", "read-only"] },

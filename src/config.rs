@@ -13,6 +13,10 @@ pub struct FileConfig {
     pub copilot_bin: Option<String>,
     pub jules_bin: Option<String>,
     pub gh_bin: Option<String>,
+    pub gemini_bin: Option<String>,
+    pub codex_bin: Option<String>,
+    pub opencode_bin: Option<String>,
+    pub claude_bin: Option<String>,
     pub worktree_root: Option<String>,
 }
 
@@ -25,6 +29,10 @@ pub struct Config {
     pub copilot_bin: String,
     pub jules_bin: String,
     pub gh_bin: String,
+    pub gemini_bin: String,
+    pub codex_bin: String,
+    pub opencode_bin: String,
+    pub claude_bin: String,
     pub jules_api_key: Option<String>,
     pub jules_api_key_cmd_parts: Option<Vec<String>>,
     pub github_token_cmd_parts: Option<Vec<String>>,
@@ -83,6 +91,10 @@ pub fn load_config() -> Config {
         copilot_bin: None,
         jules_bin: None,
         gh_bin: None,
+        gemini_bin: None,
+        codex_bin: None,
+        opencode_bin: None,
+        claude_bin: None,
         worktree_root: None,
     };
 
@@ -154,6 +166,26 @@ pub fn load_config() -> Config {
         .or(file_config.gh_bin)
         .unwrap_or_else(|| "gh".to_string());
 
+    let gemini_bin = env::var("GEMINI_BIN")
+        .ok()
+        .or(file_config.gemini_bin)
+        .unwrap_or_else(|| "gemini".to_string());
+
+    let codex_bin = env::var("CODEX_BIN")
+        .ok()
+        .or(file_config.codex_bin)
+        .unwrap_or_else(|| "codex".to_string());
+
+    let opencode_bin = env::var("OPENCODE_BIN")
+        .ok()
+        .or(file_config.opencode_bin)
+        .unwrap_or_else(|| "opencode".to_string());
+
+    let claude_bin = env::var("CLAUDE_BIN")
+        .ok()
+        .or(file_config.claude_bin)
+        .unwrap_or_else(|| "claude".to_string());
+
     let jules_api_key = env::var("JULES_API_KEY").ok();
     let jules_api_key_cmd_parts = parse_cmd_parts(env::var("JULES_API_KEY_CMD").ok());
     let github_token_cmd_parts = parse_cmd_parts(env::var("GITHUB_TOKEN_CMD").ok());
@@ -170,6 +202,10 @@ pub fn load_config() -> Config {
         copilot_bin,
         jules_bin,
         gh_bin,
+        gemini_bin,
+        codex_bin,
+        opencode_bin,
+        claude_bin,
         jules_api_key,
         jules_api_key_cmd_parts,
         github_token_cmd_parts,

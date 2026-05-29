@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "agent-cli-mcp-rust configuration — copy to your preferred location and set AGENT_CLI_CONFIG=<path>",
+
+  "allowedRoots": [
+    "~/Dev",
+    "~/projects"
+  ],
+
+  "stateDir": "~/.agent-cli-mcp",
+  "defaultTimeoutMs": 1800000,
+  "maxOutputChars": 50000,
+
+  "copilotBin": "copilot",
+  "julesBin": "jules",
+  "ghBin": "gh",
+  "geminiBin": "gemini",
+  "codexBin": "codex",
+  "opencodeBin": "opencode",
+  "claudeBin": "claude",
+
+  "worktreeRoot": null
+}
