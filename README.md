@@ -1,52 +1,123 @@
-# 🦀 Agent CLI MCP Server (Rust)
+<div align="center">
 
-A high-performance, security-first **Model Context Protocol (MCP)** server written in Rust that orchestrates multiple AI coding agents through a unified interface.
+# Agent CLI MCP Server
 
-> **One server. Six executors. Full bidirectional control.**
+**High-performance multi-agent orchestration server in Rust**
+
+[![Rust](https://img.shields.io/badge/Rust-1.75%2B-CE422B?logo=rust&logoColor=white)](https://www.rust-lang.org)
+[![MCP](https://img.shields.io/badge/Protocol-MCP_2025--03--26-FF6B35)](https://modelcontextprotocol.io)
+[![GitHub Copilot](https://img.shields.io/badge/Executor-GitHub_Copilot-24292e?logo=github&logoColor=white)](https://github.com/features/copilot)
+[![Google Jules](https://img.shields.io/badge/Executor-Google_Jules-4285F4?logo=google&logoColor=white)](https://jules.google.com)
+[![Gemini](https://img.shields.io/badge/Executor-Gemini_CLI-4285F4?logo=google-gemini&logoColor=white)](https://gemini.google.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+**One server. Six executors. Full bidirectional control.**
+
+</div>
+
+---
+
+## What It Does
+
+`agent-cli-mcp-rust` is an MCP server that lets any MCP-capable orchestrator (Claude Code, Cursor, Gemini, etc.) drive multiple AI coding agents through a single unified interface — with built-in directory isolation, secret redaction, tool permission profiles, and session management.
+
+---
 
 ## Supported Executors
 
-| Executor | Binary | Status |
+| Executor | Binary | Support Level |
 |---|---|---|
-| **GitHub Copilot CLI** | `copilot` | Full support — prompt, autopilot, fleet, delegate, review, keep-alive |
-| **Google Jules** | `jules` | Full support — remote sessions, plan approval, API, verification |
-| **Gemini CLI** | `gemini` | Generic executor — prompt, interactive, run |
-| **OpenAI Codex CLI** | `codex` | Generic executor — prompt, interactive, run |
-| **OpenCode CLI** | `opencode` | Generic executor — prompt, interactive, run |
-| **Anthropic Claude CLI** | `claude` | Generic executor — prompt, interactive, run |
+| **GitHub Copilot CLI** | `copilot` | Full — prompt, autopilot, fleet, delegate, review, keep-alive |
+| **Google Jules** | `jules` | Full — remote sessions, plan approval, API mode, verification |
+| **Gemini CLI** | `gemini` | Generic — prompt, interactive, run |
+| **OpenAI Codex CLI** | `codex` | Generic — prompt, interactive, run |
+| **OpenCode CLI** | `opencode` | Generic — prompt, interactive, run |
+| **Anthropic Claude CLI** | `claude` | Generic — prompt, interactive, run |
 
 ---
 
 ## Architecture
 
-```
-┌────────────────────────────────────────────────┐
-│              MCP Client (Orchestrator)          │
-│   Claude Code · Gemini · Codex · Cursor · etc  │
-└───────────────────┬────────────────────────────┘
-                    │ JSON-RPC over stdio
-                    ▼
-┌────────────────────────────────────────────────┐
-│         agent-cli-mcp-rust (this server)       │
-│                                                │
-│  ┌──────────┐ ┌──────────┐ ┌──────────────┐   │
-│  │ Policy   │ │ Redaction│ │ Session Mgr  │   │
-│  │ Engine   │ │ Engine   │ │ (async I/O)  │   │
-│  └──────────┘ └──────────┘ └──────────────┘   │
-│                                                │
-│  ┌──────────────────────────────────────────┐  │
-│  │           Capability Discovery           │  │
-│  │  Copilot · Jules · Gemini · Codex ·      │  │
-│  │  OpenCode · Claude                       │  │
-│  └──────────────────────────────────────────┘  │
-└──────┬──────┬──────┬──────┬──────┬──────┬──────┘
-       │      │      │      │      │      │
-       ▼      ▼      ▼      ▼      ▼      ▼
-   Copilot  Jules  Gemini  Codex  Open   Claude
-    CLI     CLI    CLI     CLI    Code    CLI
+```mermaid
+graph TD
+    subgraph Orchestrators["MCP Clients (Orchestrators)"]
+        CC[Claude Code]
+        GEM[Gemini]
+        CUR[Cursor / VS Code]
+        COD[Codex]
+    end
+
+    subgraph Server["agent-cli-mcp-rust"]
+        MCP[MCP Transport\nJSON-RPC over stdio]
+        POL[Policy Engine\nDirectory Isolation]
+        RED[Redaction Engine\nSecret Scrubbing]
+        SES[Session Manager\nAsync I/O]
+        CAP[Capability Discovery\nFlag Probing]
+    end
+
+    subgraph Executors["AI Coding Agents"]
+        COP[Copilot CLI]
+        JUL[Jules CLI / API]
+        GEMI[Gemini CLI]
+        CODEX[Codex CLI]
+        OC[OpenCode CLI]
+        CLA[Claude CLI]
+    end
+
+    Orchestrators -->|stdio| MCP
+    MCP --> POL
+    MCP --> RED
+    MCP --> SES
+    MCP --> CAP
+    SES -->|stdin/stdout pipes| Executors
 ```
 
-**Bidirectional communication**: The server maintains persistent sessions with stdin/stdout pipes, enabling real-time interactive exchanges between the orchestrator and any executor.
+---
+
+## Security Model
+
+```mermaid
+flowchart LR
+    TC[Tool Call] --> DI{Directory\nIsolation}
+    DI -->|outside allowed roots| DENY[🚫 Rejected]
+    DI -->|within allowed roots| QC{Quarantine\nCheck}
+    QC -->|marker present| DENY
+    QC -->|clean| EX[Execute]
+    EX --> OUT[Raw Output]
+    OUT --> RED[Redaction Engine]
+    RED -->|scrubs API keys, tokens,\nDB credentials, JWTs| CLEAN[Clean Output]
+    CLEAN --> ORCH[Orchestrator]
+```
+
+**Mandatory deny overlay** — always blocked regardless of profile:
+
+- `memory` writes
+- `vercel deploy --prod`
+- `supabase db reset`
+- `git push --force`
+- `security find-generic-password` (macOS Keychain)
+
+---
+
+## Tool Permission Profiles
+
+| Profile | Use Case |
+|---|---|
+| `copilot-file-edit` | Scoped file edits only |
+| `copilot-safe-dev` | Dev commands + file edits |
+| `copilot-expanded-worktree` | Full worktree access |
+| `copilot-target-repo` | Full repo with build tools |
+
+---
+
+## Tech Stack
+
+<div align="center">
+
+![Rust](https://skillicons.dev/icons?i=rust)&nbsp;
+![GitHub](https://skillicons.dev/icons?i=github)
+
+</div>
 
 ---
 
@@ -54,23 +125,21 @@ A high-performance, security-first **Model Context Protocol (MCP)** server writt
 
 ### Prerequisites
 
-- **Rust 1.75+** (install via [rustup](https://rustup.rs))
-- At least one supported CLI installed and on your `$PATH`
+- **Rust 1.75+** — install via [rustup](https://rustup.rs)
+- At least one supported executor CLI on your `$PATH`
 
-### Build from Source
+### Build
 
 ```bash
-git clone https://github.com/your-org/agent-cli-mcp-rust.git
+git clone https://github.com/pappdavid/agent-cli-mcp-rust.git
 cd agent-cli-mcp-rust
 cargo build --release
+# Binary: target/release/agent-cli-mcp-rust
 ```
-
-The binary will be at `target/release/agent-cli-mcp-rust`.
 
 ### Quick Verify
 
 ```bash
-# Check it starts and responds to MCP initialization
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"0.1.0"}}}' \
   | ./target/release/agent-cli-mcp-rust 2>/dev/null | head -1
 ```
@@ -79,74 +148,25 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 
 ## Configuration
 
-Configuration is loaded with the following precedence (highest wins):
-
-1. **Environment variables** (e.g. `COPILOT_BIN`, `GEMINI_BIN`)
-2. **Config file** (pointed to by `AGENT_CLI_CONFIG`)
-3. **Built-in defaults**
-
-### Config File
-
-Copy the included [`config.json`](config.json) template:
-
 ```bash
 cp config.json ~/.agent-cli-mcp/config.json
 export AGENT_CLI_CONFIG=~/.agent-cli-mcp/config.json
 ```
 
-```jsonc
-{
-  // Directories the server is allowed to operate in
-  "allowedRoots": ["~/Dev", "~/projects"],
+Key fields:
 
-  // State directory for run logs and session tracking
-  "stateDir": "~/.agent-cli-mcp",
-
-  // Default timeout for executor processes (30 minutes)
-  "defaultTimeoutMs": 1800000,
-
-  // Maximum characters returned in stdout/stderr output
-  "maxOutputChars": 50000,
-
-  // CLI binary paths (override if not on $PATH)
-  "copilotBin": "copilot",
-  "julesBin": "jules",
-  "ghBin": "gh",
-  "geminiBin": "gemini",
-  "codexBin": "codex",
-  "opencodeBin": "opencode",
-  "claudeBin": "claude"
-}
-```
-
-### Environment Variables
-
-| Variable | Default | Description |
+| Field | Default | Description |
 |---|---|---|
-| `AGENT_CLI_CONFIG` | — | Path to JSON config file |
-| `AGENT_CLI_ALLOWED_ROOTS` | `~/Dev,~/dev,~/projects` | Comma-separated allowed directories |
-| `AGENT_CLI_STATE_DIR` | `~/.agent-cli-mcp` | State/log storage directory |
-| `AGENT_CLI_DEFAULT_TIMEOUT_MS` | `1800000` | Default process timeout |
-| `AGENT_CLI_MAX_OUTPUT_CHARS` | `50000` | Max output chars returned |
-| `COPILOT_BIN` | `copilot` | Path to Copilot CLI |
-| `JULES_BIN` | `jules` | Path to Jules CLI |
-| `GH_BIN` | `gh` | Path to GitHub CLI |
-| `GEMINI_BIN` | `gemini` | Path to Gemini CLI |
-| `CODEX_BIN` | `codex` | Path to Codex CLI |
-| `OPENCODE_BIN` | `opencode` | Path to OpenCode CLI |
-| `CLAUDE_BIN` | `claude` | Path to Claude CLI |
-| `JULES_API_KEY` | — | Jules API key for API mode |
-| `JULES_API_KEY_CMD` | — | Command to retrieve Jules API key |
-| `GITHUB_TOKEN_CMD` | — | Command to retrieve GitHub token |
-| `AGENT_CLI_WORKTREE_ROOT` | — | Custom worktree storage root |
+| `allowedRoots` | `~/Dev,~/projects` | Directories the server may operate in |
+| `stateDir` | `~/.agent-cli-mcp` | Run logs and session tracking |
+| `defaultTimeoutMs` | `1800000` | Executor process timeout (30 min) |
+| `maxOutputChars` | `50000` | Max chars returned per tool call |
 
 ---
 
-## Registering with MCP Clients
+## Register with MCP Clients
 
-### Claude Code / Claude Desktop
-
-Add to your MCP settings (e.g. `~/.claude/settings.json` or `claude_desktop_config.json`):
+**Claude Code / Claude Desktop** — add to `~/.claude/settings.json`:
 
 ```json
 {
@@ -161,66 +181,6 @@ Add to your MCP settings (e.g. `~/.claude/settings.json` or `claude_desktop_conf
   }
 }
 ```
-
-### Gemini CLI / Antigravity
-
-Add to your Gemini MCP configuration:
-
-```json
-{
-  "mcpServers": {
-    "agent-cli": {
-      "command": "/path/to/agent-cli-mcp-rust",
-      "env": {
-        "AGENT_CLI_ALLOWED_ROOTS": "~/Dev"
-      }
-    }
-  }
-}
-```
-
-### Cursor / VS Code
-
-Configure in your editor's MCP server settings following the same pattern.
-
----
-
-## Security Model
-
-### Directory Isolation
-
-All commands are restricted to directories under `allowedRoots`. The server:
-- Resolves symlinks and canonicalizes paths before comparison
-- Validates `cwd` against allowed roots on every tool call
-- Supports quarantine markers (`.agent-cli-quarantine`) to freeze directories
-
-### Secret Redaction
-
-All output passes through a strict redaction engine that scrubs:
-- API keys and tokens (Bearer, sk-, ghp_, ghu_, etc.)
-- AWS credentials, Azure keys, GCP service accounts
-- Database connection strings with credentials
-- JWT tokens, private keys, and passphrases
-
-### Tool Permission Profiles
-
-Built-in presets enforce least-privilege access:
-
-| Profile | Use Case |
-|---|---|
-| `copilot-file-edit` | Scoped file edits only |
-| `copilot-safe-dev` | Dev commands + file edits |
-| `copilot-expanded-worktree` | Full worktree access |
-| `copilot-target-repo` | Full repo with build tools |
-
-### Mandatory Deny Overlay
-
-These operations are **always blocked**, regardless of profile:
-- `memory` — persistent memory writes
-- `vercel deploy --prod` — production deployments
-- `supabase db reset` — destructive DB operations
-- `git push --force` — force pushes
-- `security find-generic-password` — macOS Keychain access
 
 ---
 
@@ -239,86 +199,41 @@ These operations are **always blocked**, regardless of profile:
 
 | Tool | Description |
 |---|---|
-| `agent_cli.run` | One-shot executor dispatch (waits for completion) |
+| `agent_cli.run` | One-shot dispatch (waits for completion) |
 | `agent_cli.run_quick` | Short-lived run with immediate output |
 | `agent_cli.start_run` | Background run (returns immediately) |
 | `agent_cli.start_session` | Long-running interactive session |
-| `agent_cli.send_input` | Write to a session's stdin |
+| `agent_cli.send_input` | Write to session stdin |
 | `agent_cli.read_output` | Read captured stdout/stderr |
 | `agent_cli.list_sessions` | List runs and active sessions |
 | `agent_cli.kill_session` | Terminate a running process |
-| `agent_cli.run_binary_scoped` | L3 escape hatch with sandbox scoping |
-
-### Copilot-Specific
-
-| Tool | Description |
-|---|---|
-| `copilot.run` | Convenience wrapper for Copilot runs |
-| `copilot.fleet` | Run Copilot `/fleet` mode |
-| `copilot.delegate` | Copilot `/delegate` for autonomous work |
-| `copilot.autopilot` | Copilot autopilot mode |
-| `copilot.keep_alive` | Long-running `/keep-alive` session |
-| `copilot.review` | Copilot `/review` for change review |
 
 ### Jules-Specific
 
 | Tool | Description |
 |---|---|
 | `jules.create_session` | Create a Jules API session |
-| `jules.list_sessions` | List Jules sessions |
-| `jules.get_session` | Fetch a single session |
-| `jules.get_status` | Normalized status with activities/plan/outputs |
 | `jules.approve_plan` | Approve the latest plan |
 | `jules.send_message` | Send feedback to a session |
 | `jules.request_verification` | Ask Jules to verify results |
 | `jules.pending_actions` | Sessions needing attention |
-| `jules.watch` | Poll session state changes |
-| `jules.collect_outputs` | Collect session outputs |
 
 ### Infrastructure
 
 | Tool | Description |
 |---|---|
 | `agent_cli.create_worktree` | Create isolated git worktrees |
-| `agent_cli.resolve_repo_context` | Resolve repo/worktree context |
 | `agent_cli.sanity_check` | Scan for mutations or leaks |
 | `agent_cli.quarantine` | Freeze a directory |
 | `agent_cli.collect_artifacts` | Collect executor outputs |
-| `gh.pr_list` | List open pull requests |
-
-### Resources
-
-| URI | Description |
-|---|---|
-| `agent://overview` | Dashboard as markdown |
-| `agent://running` | Currently running sessions |
-| `agent://pending-input` | Sessions awaiting input |
-| `agent://done` | Completed sessions |
-| `agent://stale` | Failed/stale sessions |
-| `jules://sessions` | All Jules sessions |
-| `jules://session/{id}` | Single Jules session |
-| `jules://pending-actions` | Jules sessions needing action |
 
 ---
 
 ## Development
 
 ```bash
-# Run tests
-cargo test
-
-# Run with logging
-RUST_LOG=debug cargo run
-
-# Format code
-cargo fmt
-
-# Lint
-cargo clippy
+cargo test          # Run tests
+cargo fmt           # Format code
+cargo clippy        # Lint
+RUST_LOG=debug cargo run  # Run with debug logging
 ```
-
----
-
-## License
-
-MIT
