@@ -1,16 +1,15 @@
 use serde_json::json;
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::config::Config;
 use crate::errors::{AgentCliError, ErrorCode};
+use crate::jules_client;
 use crate::mcp::McpServer;
+use crate::policy;
 use crate::runner::SessionManager;
+use crate::sanity;
 use crate::store::Store;
 use crate::tools;
-use crate::sanity;
-use crate::policy;
-use crate::jules_client;
 
 pub fn register_all(
     server: &McpServer,
@@ -580,7 +579,7 @@ pub fn register_all(
     );
 
     // agent_cli.resolve_repo_context
-    let c = config.clone();
+    let _c = config.clone();
     server.register_tool(
         "agent_cli.resolve_repo_context",
         "Resolve current repo/worktree context.",
@@ -704,15 +703,11 @@ pub fn register_all(
             "properties": {
                 "cwd": { "type": "string" },
                 "mode": { "type": "string" },
-                "model": { "type": "string" },
-                "agent": { "type": "string" },
                 "prompt": { "type": "string" },
-                "promptFile": { "type": "string" },
                 "argv": { "type": "array", "items": { "type": "string" } },
                 "allowTools": { "type": "array", "items": { "type": "string" } },
                 "denyTools": { "type": "array", "items": { "type": "string" } },
                 "timeoutMs": { "type": "integer" },
-                "outputMode": { "type": "string" },
                 "dryRun": { "type": "boolean" }
             },
             "required": ["cwd"]
@@ -740,9 +735,6 @@ pub fn register_all(
             "properties": {
                 "cwd": { "type": "string" },
                 "prompt": { "type": "string" },
-                "model": { "type": "string" },
-                "agent": { "type": "string" },
-                "allowAllTools": { "type": "boolean" },
                 "allowTools": { "type": "array", "items": { "type": "string" } },
                 "denyTools": { "type": "array", "items": { "type": "string" } },
                 "timeoutMs": { "type": "integer" }
@@ -772,9 +764,6 @@ pub fn register_all(
             "properties": {
                 "cwd": { "type": "string" },
                 "prompt": { "type": "string" },
-                "model": { "type": "string" },
-                "agent": { "type": "string" },
-                "allowAllTools": { "type": "boolean" },
                 "allowTools": { "type": "array", "items": { "type": "string" } },
                 "denyTools": { "type": "array", "items": { "type": "string" } },
                 "timeoutMs": { "type": "integer" }
@@ -805,9 +794,6 @@ pub fn register_all(
             "properties": {
                 "cwd": { "type": "string" },
                 "prompt": { "type": "string" },
-                "model": { "type": "string" },
-                "agent": { "type": "string" },
-                "allowAllTools": { "type": "boolean" },
                 "allowTools": { "type": "array", "items": { "type": "string" } },
                 "denyTools": { "type": "array", "items": { "type": "string" } },
                 "timeoutMs": { "type": "integer" },
@@ -840,9 +826,6 @@ pub fn register_all(
             "properties": {
                 "cwd": { "type": "string" },
                 "prompt": { "type": "string" },
-                "model": { "type": "string" },
-                "agent": { "type": "string" },
-                "allowAllTools": { "type": "boolean" },
                 "allowTools": { "type": "array", "items": { "type": "string" } },
                 "denyTools": { "type": "array", "items": { "type": "string" } },
                 "timeoutMs": { "type": "integer" }
@@ -873,12 +856,9 @@ pub fn register_all(
             "properties": {
                 "cwd": { "type": "string" },
                 "prompt": { "type": "string" },
-                "model": { "type": "string" },
-                "agent": { "type": "string" },
                 "allowTools": { "type": "array", "items": { "type": "string" } },
                 "denyTools": { "type": "array", "items": { "type": "string" } },
                 "timeoutMs": { "type": "integer" },
-                "outputMode": { "type": "string" }
             },
             "required": ["cwd", "prompt"]
         }),

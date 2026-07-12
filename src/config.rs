@@ -43,7 +43,7 @@ fn parse_allowed_roots(raw: &str) -> Vec<String> {
     raw.split(',')
         .map(|r| r.trim())
         .filter(|r| !r.is_empty())
-        .map(|r| canonicalize_path(r))
+        .map(canonicalize_path)
         .collect()
 }
 
@@ -58,10 +58,10 @@ fn parse_cmd_parts(raw: Option<String>) -> Option<Vec<String>> {
 }
 
 pub fn canonicalize_path(p: &str) -> String {
-    let expanded = if p.starts_with("~/") {
+    let expanded = if let Some(stripped) = p.strip_prefix("~/") {
         if let Some(home) = env::var_os("HOME") {
             let mut path = PathBuf::from(home);
-            path.push(&p[2..]);
+            path.push(stripped);
             path
         } else {
             PathBuf::from(p)
@@ -122,9 +122,15 @@ pub fn load_config() -> Config {
             let home_path = PathBuf::from(home);
             allowed_roots.push(canonicalize_path(&home_path.join("Dev").to_string_lossy()));
             allowed_roots.push(canonicalize_path(&home_path.join("dev").to_string_lossy()));
-            allowed_roots.push(canonicalize_path(&home_path.join("projects").to_string_lossy()));
-            allowed_roots.push(canonicalize_path(&home_path.join(".codex/worktrees").to_string_lossy()));
-            allowed_roots.push(canonicalize_path(&home_path.join(".claude/worktrees").to_string_lossy()));
+            allowed_roots.push(canonicalize_path(
+                &home_path.join("projects").to_string_lossy(),
+            ));
+            allowed_roots.push(canonicalize_path(
+                &home_path.join(".codex/worktrees").to_string_lossy(),
+            ));
+            allowed_roots.push(canonicalize_path(
+                &home_path.join(".claude/worktrees").to_string_lossy(),
+            ));
         }
     }
 
@@ -133,7 +139,10 @@ pub fn load_config() -> Config {
         .or(file_config.state_dir)
         .unwrap_or_else(|| {
             if let Some(home) = env::var_os("HOME") {
-                PathBuf::from(home).join(".agent-cli-mcp").to_string_lossy().to_string()
+                PathBuf::from(home)
+                    .join(".agent-cli-mcp")
+                    .to_string_lossy()
+                    .to_string()
             } else {
                 ".agent-cli-mcp".to_string()
             }
