@@ -147,4 +147,3 @@ mod tests {
         assert_eq!(res.output, "[REDACTED_SECRET]");
     }
 }
-

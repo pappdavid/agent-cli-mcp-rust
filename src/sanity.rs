@@ -1,13 +1,13 @@
-use serde::Serialize;
-use std::fs;
-use std::path::Path;
-use std::process::Command;
-use regex::Regex;
 use crate::config::Config;
 use crate::errors::AgentCliError;
 use crate::policy::validate_cwd;
 use crate::redaction::redact;
 use crate::store::Store;
+use regex::Regex;
+use serde::Serialize;
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SanityFinding {
@@ -72,7 +72,10 @@ pub async fn run_sanity_check(
                             finding_type: "ENV_FILE_MODIFIED".to_string(),
                             message: format!("Environment file modified: {}", file),
                             file: Some(file.to_string()),
-                            evidence: Some("Executor wrote to a .env file. Verify no secrets were embedded.".to_string()),
+                            evidence: Some(
+                                "Executor wrote to a .env file. Verify no secrets were embedded."
+                                    .to_string(),
+                            ),
                         });
                     }
 
@@ -82,7 +85,8 @@ pub async fn run_sanity_check(
                             .output();
 
                         if let Ok(fd_out) = file_diff_out {
-                            let diff_content = String::from_utf8_lossy(&fd_out.stdout).to_lowercase();
+                            let diff_content =
+                                String::from_utf8_lossy(&fd_out.stdout).to_lowercase();
                             if diff_content.contains("secret") || diff_content.contains("key") {
                                 findings.push(SanityFinding {
                                     finding_type: "CLAUDE_MD_SUSPICIOUS_EDIT".to_string(),
@@ -165,7 +169,10 @@ pub async fn run_sanity_check(
                         if redact_res.triggered {
                             findings.push(SanityFinding {
                                 finding_type: "SECRET_IN_LOGS".to_string(),
-                                message: format!("Secret-looking string found in logs: {}", path.file_name().and_then(|n| n.to_str()).unwrap_or("")),
+                                message: format!(
+                                    "Secret-looking string found in logs: {}",
+                                    path.file_name().and_then(|n| n.to_str()).unwrap_or("")
+                                ),
                                 file: Some((*log_path_str).clone()),
                                 evidence: None,
                             });
@@ -174,7 +181,8 @@ pub async fn run_sanity_check(
                         if dangerous_command_re.is_match(raw_slice) {
                             findings.push(SanityFinding {
                                 finding_type: "DANGEROUS_COMMAND_IN_LOGS".to_string(),
-                                message: "Dangerous provider command detected in executor logs".to_string(),
+                                message: "Dangerous provider command detected in executor logs"
+                                    .to_string(),
                                 file: Some((*log_path_str).clone()),
                                 evidence: Some(extract_match(raw_slice, &dangerous_command_re)),
                             });

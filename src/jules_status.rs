@@ -288,10 +288,12 @@ pub fn build_jules_status(input: BuildJulesStatusInput) -> JulesStatusSummary {
         .rev()
         .find_map(|act| act.session_failed.as_ref()?.reason.clone());
 
-    let outputs = input.session.as_ref().and_then(|s| s.outputs.clone()).unwrap_or_default();
-    let pr = outputs
-        .iter()
-        .find_map(|out| out.pull_request.clone());
+    let outputs = input
+        .session
+        .as_ref()
+        .and_then(|s| s.outputs.clone())
+        .unwrap_or_default();
+    let pr = outputs.iter().find_map(|out| out.pull_request.clone());
 
     let normalized_status = if input.local_normalized_status.as_deref() == Some("stale_local_run") {
         NormalizedJulesStatus::StaleLocalRun
@@ -301,8 +303,12 @@ pub fn build_jules_status(input: BuildJulesStatusInput) -> JulesStatusSummary {
 
     let needed_action = match normalized_status {
         NormalizedJulesStatus::AwaitingPlanApproval => Some("approve_plan".to_string()),
-        NormalizedJulesStatus::AwaitingUserFeedback | NormalizedJulesStatus::Paused => Some("send_message".to_string()),
-        NormalizedJulesStatus::Completed if pr.is_some() || !outputs.is_empty() => Some("verify_pr".to_string()),
+        NormalizedJulesStatus::AwaitingUserFeedback | NormalizedJulesStatus::Paused => {
+            Some("send_message".to_string())
+        }
+        NormalizedJulesStatus::Completed if pr.is_some() || !outputs.is_empty() => {
+            Some("verify_pr".to_string())
+        }
         NormalizedJulesStatus::Failed => Some("inspect_failure".to_string()),
         NormalizedJulesStatus::StaleLocalRun => Some("reconcile_local_run".to_string()),
         _ => None,
@@ -318,16 +324,16 @@ pub fn build_jules_status(input: BuildJulesStatusInput) -> JulesStatusSummary {
 
     let progress = ordered_activities
         .iter()
-        .filter_map(|act| describe_activity(act))
+        .filter_map(describe_activity)
         .collect();
 
     JulesStatusSummary {
         ok: true,
         run_id: input.run_id,
-        session_id: input
-            .session
-            .as_ref()
-            .and_then(|s| s.id.clone().or_else(|| s.name.as_ref().map(|n| n.replace("sessions/", "")))),
+        session_id: input.session.as_ref().and_then(|s| {
+            s.id.clone()
+                .or_else(|| s.name.as_ref().map(|n| n.replace("sessions/", "")))
+        }),
         title: input.session.as_ref().and_then(|s| s.title.clone()),
         state: input.session.as_ref().and_then(|s| s.state.clone()),
         normalized_status,
