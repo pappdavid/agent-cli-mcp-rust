@@ -26,44 +26,46 @@ jobs:
           ref: repair/verified-build-v2
           fetch-depth: 0
 
+      - name: Check whether repair is already applied
+        id: gate
+        run: |
+          if [ -f .repair-applied ]; then
+            echo "apply=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "apply=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install stable Rust
+        if: steps.gate.outputs.apply == 'true'
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
 
       - name: Apply reviewed transformations
-        id: repair
-        continue-on-error: true
-        run: python3 scripts/run_verified_repairs.py 2> repair-error.txt
+        if: steps.gate.outputs.apply == 'true'
+        run: python3 scripts/run_verified_repairs.py
 
       - name: Format and verify repaired source
-        id: repaired-verification
-        if: steps.repair.outcome == 'success'
-        continue-on-error: true
+        if: steps.gate.outputs.apply == 'true'
         run: |
           cargo fmt --all
           cargo check --all-targets
           cargo clippy --all-targets -- -D warnings -A dead_code
           cargo test --all-targets
 
-      - name: Commit repaired source or exact diagnostic
-        if: always()
+      - name: Commit repaired source
+        if: steps.gate.outputs.apply == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if [ "${{ steps.repair.outcome }}" = success ] && [ "${{ steps.repaired-verification.outcome }}" = success ]; then
-            rm -f repair-error.txt
-            git add -A src repair-error.txt
-            if git diff --cached --quiet; then
-              echo "Reviewed transformations produced no source changes"
-              exit 1
-            fi
-            git commit -m "fix: make advertised MCP options truthful [verified-repair]"
-          else
-            test -s repair-error.txt || echo "repair=${{ steps.repair.outcome }} verification=${{ steps.repaired-verification.outcome }}" > repair-error.txt
-            git add repair-error.txt
-            git commit -m "chore: capture exact reviewed-repair failure [verified-repair]"
+          rm -f repair-error.txt
+          touch .repair-applied
+          git add -A src .repair-applied repair-error.txt
+          if git diff --cached --quiet; then
+            echo "Reviewed transformations produced no source changes"
+            exit 1
           fi
+          git commit -m "fix: make advertised MCP options truthful [verified-repair]"
           git push origin HEAD:repair/verified-build-v2
 
   verify:
