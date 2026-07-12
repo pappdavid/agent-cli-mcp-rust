@@ -1,0 +1,1 @@
+Apply scripts/apply_verified_repairs.py once, verify the transformed source, and commit only if all gates pass.
