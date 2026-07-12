@@ -55,7 +55,20 @@ jobs:
 
       - name: Lint repaired source
         if: steps.gate.outputs.apply == 'true'
-        run: cargo clippy --all-targets -- -D warnings -A dead_code
+        run: |
+          if cargo clippy --all-targets -- -D warnings -A dead_code > clippy-error.txt 2>&1; then
+            rm -f clippy-error.txt
+          else
+            cat clippy-error.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add clippy-error.txt
+            if ! git diff --cached --quiet; then
+              git commit -m "chore: capture exact Clippy diagnostics [verified-repair]"
+              git push origin HEAD:repair/verified-build-v2
+            fi
+            exit 1
+          fi
 
       - name: Test repaired source
         if: steps.gate.outputs.apply == 'true'
@@ -66,9 +79,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          rm -f repair-error.txt
+          rm -f repair-error.txt clippy-error.txt
           touch .repair-applied
-          git add -A src .repair-applied repair-error.txt
+          git add -A src .repair-applied repair-error.txt clippy-error.txt
           if git diff --cached --quiet; then
             echo "Reviewed transformations produced no source changes"
             exit 1
