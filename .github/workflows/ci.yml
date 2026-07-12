@@ -32,25 +32,39 @@ jobs:
           components: rustfmt, clippy
 
       - name: Apply reviewed transformations
-        run: python3 scripts/apply_verified_repairs.py
+        id: repair
+        continue-on-error: true
+        run: python3 scripts/apply_verified_repairs.py 2> repair-error.txt
 
       - name: Format and verify repaired source
+        id: repaired-verification
+        if: steps.repair.outcome == 'success'
+        continue-on-error: true
         run: |
           cargo fmt --all
           cargo check --all-targets
           cargo clippy --all-targets -- -D warnings -A dead_code
           cargo test --all-targets
 
-      - name: Commit repaired source
+      - name: Commit repaired source or exact diagnostic
+        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src
-          if git diff --cached --quiet; then
-            echo "Reviewed transformations produced no source changes"
-            exit 1
+          if [ "${{ steps.repair.outcome }}" = success ] && [ "${{ steps.repaired-verification.outcome }}" = success ]; then
+            rm -f repair-error.txt
+            git add src
+            if git diff --cached --quiet; then
+              echo "Reviewed transformations produced no source changes"
+              exit 1
+            fi
+            git commit -m "fix: make advertised MCP options truthful [verified-repair]"
+          else
+            git reset --hard HEAD
+            test -s repair-error.txt || echo "repair=${{ steps.repair.outcome }} verification=${{ steps.repaired-verification.outcome }}" > repair-error.txt
+            git add repair-error.txt
+            git commit -m "chore: capture exact reviewed-repair failure [verified-repair]"
           fi
-          git commit -m "fix: make advertised MCP options truthful [verified-repair]"
           git push origin HEAD:repair/verified-build-v2
 
   verify:
