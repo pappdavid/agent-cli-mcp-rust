@@ -12,7 +12,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,24 +25,77 @@ jobs:
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
 
-      - name: Diagnose formatting
+      - name: Prepare diagnostics
+        run: mkdir -p diagnostics
+
+      - name: Check formatting
+        id: format
         continue-on-error: true
-        run: cargo fmt --all -- --check
+        run: |
+          cargo fmt --all
+          git diff -- . > diagnostics/rustfmt.patch
+          if [ -s diagnostics/rustfmt.patch ]; then
+            echo "rustfmt changes are required"
+            exit 1
+          fi
 
       - name: Compile all targets
-        run: cargo check --all-targets
+        id: check
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          cargo check --all-targets 2>&1 | tee diagnostics/cargo-check.log
 
       - name: Run Clippy
-        run: cargo clippy --all-targets -- -D warnings
+        id: clippy
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          cargo clippy --all-targets -- -D warnings 2>&1 | tee diagnostics/clippy.log
 
       - name: Run tests
-        run: cargo test --all-targets
+        id: tests
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          cargo test --all-targets 2>&1 | tee diagnostics/tests.log
 
       - name: Build release binary
-        run: cargo build --release
+        id: build
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          cargo build --release 2>&1 | tee diagnostics/release-build.log
 
       - name: Verify MCP stdio protocol
-        run: python3 scripts/mcp_smoke.py
+        id: smoke
+        if: always() && steps.build.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          python3 scripts/mcp_smoke.py 2>&1 | tee diagnostics/mcp-smoke.log
 
-      - name: Enforce formatting
-        run: cargo fmt --all -- --check
+      - name: Upload verification diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-verification-diagnostics
+          path: diagnostics
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce verification gates
+        if: always()
+        run: |
+          echo "format=${{ steps.format.outcome }}"
+          echo "check=${{ steps.check.outcome }}"
+          echo "clippy=${{ steps.clippy.outcome }}"
+          echo "tests=${{ steps.tests.outcome }}"
+          echo "build=${{ steps.build.outcome }}"
+          echo "smoke=${{ steps.smoke.outcome }}"
+          test "${{ steps.format.outcome }}" = success
+          test "${{ steps.check.outcome }}" = success
+          test "${{ steps.clippy.outcome }}" = success
+          test "${{ steps.tests.outcome }}" = success
+          test "${{ steps.build.outcome }}" = success
+          test "${{ steps.smoke.outcome }}" = success
