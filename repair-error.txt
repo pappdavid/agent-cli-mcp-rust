@@ -1,8 +1,0 @@
-transform=failure
-verify=skipped
---- transform log ---
-Traceback (most recent call last):
-  File "<stdin>", line 172, in <module>
-  File "<stdin>", line 6, in replace_once
-RuntimeError: Clippy dead-code allowance: expected one match, found 0
---- verification log ---
