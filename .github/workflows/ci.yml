@@ -13,9 +13,8 @@ permissions:
 jobs:
   apply-reviewed-repair:
     if: >-
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/repair/verified-build-v2' &&
-      !contains(github.event.head_commit.message, '[verified-repair]')
+      github.event_name == 'pull_request' &&
+      github.head_ref == 'repair/verified-build-v2'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
