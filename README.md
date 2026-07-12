@@ -5,7 +5,7 @@
 **Rust MCP server for dispatching and supervising external AI coding CLIs**
 
 [![Rust](https://img.shields.io/badge/Rust-stable-CE422B?logo=rust&logoColor=white)](https://www.rust-lang.org)
-[![MCP](https://img.shields.io/badge/Protocol-MCP_2025--03--26-FF6B35)](https://modelcontextprotocol.io)
+[![MCP](https://img.shields.io/badge/Protocol-MCP_2024--11--05-FF6B35)](https://modelcontextprotocol.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 </div>
@@ -18,8 +18,9 @@ The repository contains dedicated integrations for GitHub Copilot CLI and Google
 
 ## Current verification
 
-- `cargo test` covers the directory-policy and redaction modules.
-- CI runs `cargo check --all-targets` and `cargo test --all-targets` on the current stable Rust toolchain.
+- CI enforces `cargo fmt`, `cargo check --all-targets`, strict Clippy, and `cargo test --all-targets` on stable Rust.
+- CI produces a release binary and exercises it as a black-box MCP stdio server.
+- The transport smoke test verifies `initialize`, `tools/list`, and `resources/list` against MCP protocol version `2024-11-05`.
 - The repository does not currently provide end-to-end CI against third-party executor services.
 - No throughput, latency, or scalability benchmarks have been published.
 - Tool availability and behavior depend on the locally installed executor versions.
@@ -75,7 +76,7 @@ cargo build --release
 Quick transport check:
 
 ```bash
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"0.1.0"}}}' \
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1.0"}}}' \
   | ./target/release/agent-cli-mcp-rust 2>/dev/null | head -1
 ```
 
@@ -105,7 +106,10 @@ The exact tool schema is defined in the source and may evolve with the executor 
 ## Development
 
 ```bash
-cargo test
+cargo fmt --all -- --check
 cargo check --all-targets
-cargo fmt --check
+cargo clippy --all-targets -- -D warnings -A dead_code
+cargo test --all-targets
+cargo build --release
+python3 scripts/mcp_smoke.py
 ```
