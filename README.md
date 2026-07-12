@@ -4,7 +4,7 @@
 
 **Rust MCP server for dispatching and supervising external AI coding CLIs**
 
-[![Rust](https://img.shields.io/badge/Rust-1.75%2B-CE422B?logo=rust&logoColor=white)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/Rust-stable-CE422B?logo=rust&logoColor=white)](https://www.rust-lang.org)
 [![MCP](https://img.shields.io/badge/Protocol-MCP_2025--03--26-FF6B35)](https://modelcontextprotocol.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -19,6 +19,7 @@ The repository contains dedicated integrations for GitHub Copilot CLI and Google
 ## Current verification
 
 - `cargo test` covers the directory-policy and redaction modules.
+- CI runs `cargo check --all-targets` and `cargo test --all-targets` on the current stable Rust toolchain.
 - The repository does not currently provide end-to-end CI against third-party executor services.
 - No throughput, latency, or scalability benchmarks have been published.
 - Tool availability and behavior depend on the locally installed executor versions.
@@ -62,7 +63,7 @@ These controls are defensive checks, not a complete sandbox. Review the policy c
 
 ### Prerequisites
 
-- Rust 1.75+
+- Current stable Rust toolchain
 - At least one supported executor CLI installed on `$PATH`
 
 ```bash
