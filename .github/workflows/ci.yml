@@ -45,13 +45,21 @@ jobs:
         if: steps.gate.outputs.apply == 'true'
         run: python3 scripts/run_verified_repairs.py
 
-      - name: Format and verify repaired source
+      - name: Format repaired source
         if: steps.gate.outputs.apply == 'true'
-        run: |
-          cargo fmt --all
-          cargo check --all-targets
-          cargo clippy --all-targets -- -D warnings -A dead_code
-          cargo test --all-targets
+        run: cargo fmt --all
+
+      - name: Compile repaired source
+        if: steps.gate.outputs.apply == 'true'
+        run: cargo check --all-targets
+
+      - name: Lint repaired source
+        if: steps.gate.outputs.apply == 'true'
+        run: cargo clippy --all-targets -- -D warnings -A dead_code
+
+      - name: Test repaired source
+        if: steps.gate.outputs.apply == 'true'
+        run: cargo test --all-targets
 
       - name: Commit repaired source
         if: steps.gate.outputs.apply == 'true'
