@@ -1,22 +1,88 @@
-name: CI
+name: Rust CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, repair/verified-build-v2]
   pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  rust:
+  apply-reviewed-repair:
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/repair/verified-build-v2' &&
+      !contains(github.event.head_commit.message, '[verified-repair]')
     runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Check
+      - name: Checkout repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: repair/verified-build-v2
+          fetch-depth: 0
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Apply reviewed transformations
+        run: python3 scripts/apply_verified_repairs.py
+
+      - name: Format and verify repaired source
+        run: |
+          cargo fmt --all
+          cargo check --all-targets
+          cargo clippy --all-targets -- -D warnings -A dead_code
+          cargo test --all-targets
+
+      - name: Commit repaired source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src
+          if git diff --cached --quiet; then
+            echo "Reviewed transformations produced no source changes"
+            exit 1
+          fi
+          git commit -m "fix: make advertised MCP options truthful [verified-repair]"
+          git push origin HEAD:repair/verified-build-v2
+
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Compile all targets
         run: cargo check --all-targets
-      - name: Test
+
+      - name: Run Clippy
+        run: cargo clippy --all-targets -- -D warnings -A dead_code
+
+      - name: Run tests
         run: cargo test --all-targets
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Verify MCP stdio protocol
+        run: python3 scripts/mcp_smoke.py
