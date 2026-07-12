@@ -1,9 +1,9 @@
+use chrono::{DateTime, Utc};
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use rand::Rng;
-use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentRun {
@@ -110,17 +110,39 @@ impl Store {
         let mut runs = self.all();
         if let Some(idx) = runs.iter().rposition(|r| r.id == id) {
             let run = &mut runs[idx];
-            if let Some(s) = patch.status { run.status = s; }
-            if let Some(e) = patch.ended_at { run.ended_at = Some(e); }
-            if let Some(ec) = patch.exit_code { run.exit_code = ec; }
-            if let Some(rs) = patch.remote_session_id { run.remote_session_id = Some(rs); }
-            if let Some(rsrc) = patch.remote_source { run.remote_source = Some(rsrc); }
-            if let Some(ru) = patch.remote_url { run.remote_url = Some(ru); }
-            if let Some(rst) = patch.remote_state { run.remote_state = Some(rst); }
-            if let Some(ns) = patch.normalized_status { run.normalized_status = Some(ns); }
-            if let Some(la) = patch.last_activity_time { run.last_activity_time = Some(la); }
-            if let Some(lr) = patch.last_reconciled_at { run.last_reconciled_at = Some(lr); }
-            if let Some(sr) = patch.stale_reason { run.stale_reason = Some(sr); }
+            if let Some(s) = patch.status {
+                run.status = s;
+            }
+            if let Some(e) = patch.ended_at {
+                run.ended_at = Some(e);
+            }
+            if let Some(ec) = patch.exit_code {
+                run.exit_code = ec;
+            }
+            if let Some(rs) = patch.remote_session_id {
+                run.remote_session_id = Some(rs);
+            }
+            if let Some(rsrc) = patch.remote_source {
+                run.remote_source = Some(rsrc);
+            }
+            if let Some(ru) = patch.remote_url {
+                run.remote_url = Some(ru);
+            }
+            if let Some(rst) = patch.remote_state {
+                run.remote_state = Some(rst);
+            }
+            if let Some(ns) = patch.normalized_status {
+                run.normalized_status = Some(ns);
+            }
+            if let Some(la) = patch.last_activity_time {
+                run.last_activity_time = Some(la);
+            }
+            if let Some(lr) = patch.last_reconciled_at {
+                run.last_reconciled_at = Some(lr);
+            }
+            if let Some(sr) = patch.stale_reason {
+                run.stale_reason = Some(sr);
+            }
 
             let mut file = fs::File::create(&self.runs_file)?;
             for r in runs {

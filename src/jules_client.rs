@@ -1,9 +1,9 @@
-use reqwest::Client;
-use serde::{Deserialize, Serialize};
-use std::process::Command;
 use crate::config::Config;
 use crate::errors::{AgentCliError, ErrorCode};
 use crate::jules_status::{JulesActivity, JulesSession, SourceContext};
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
+use std::process::Command;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -75,7 +75,10 @@ fn get_api_key(config: &Config) -> Result<String, AgentCliError> {
             .map_err(|e| {
                 AgentCliError::new(
                     ErrorCode::BackendFailed,
-                    &format!("Failed to retrieve Jules API key via JULES_API_KEY_CMD: {}", e),
+                    &format!(
+                        "Failed to retrieve Jules API key via JULES_API_KEY_CMD: {}",
+                        e
+                    ),
                 )
             })?;
 
@@ -116,7 +119,12 @@ impl JulesClient {
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
-            .map_err(|e| AgentCliError::new(ErrorCode::BackendFailed, &format!("Failed to build HTTP client: {}", e)))?;
+            .map_err(|e| {
+                AgentCliError::new(
+                    ErrorCode::BackendFailed,
+                    &format!("Failed to build HTTP client: {}", e),
+                )
+            })?;
 
         Ok(JulesClient { client, api_key })
     }
@@ -128,7 +136,9 @@ impl JulesClient {
         body: Option<serde_json::Value>,
     ) -> Result<T, AgentCliError> {
         let url = format!("{}{}", API_BASE_URL, pathname);
-        let mut builder = self.client.request(method.clone(), &url)
+        let mut builder = self
+            .client
+            .request(method.clone(), &url)
             .header("x-goog-api-key", &self.api_key)
             .header("Content-Type", "application/json");
 
@@ -136,37 +146,64 @@ impl JulesClient {
             builder = builder.json(&b);
         }
 
-        let response = builder.send().await
-            .map_err(|e| AgentCliError::new(ErrorCode::BackendFailed, &format!("Jules API request failed: {}", e)))?;
+        let response = builder.send().await.map_err(|e| {
+            AgentCliError::new(
+                ErrorCode::BackendFailed,
+                &format!("Jules API request failed: {}", e),
+            )
+        })?;
 
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             return Err(AgentCliError::new(
                 ErrorCode::BackendFailed,
-                &format!("Jules API request {} failed with {}: {}", pathname, status, text),
+                &format!(
+                    "Jules API request {} failed with {}: {}",
+                    pathname, status, text
+                ),
             ));
         }
 
-        let text = response.text().await
-            .map_err(|e| AgentCliError::new(ErrorCode::BackendFailed, &format!("Failed to read response body: {}", e)))?;
+        let text = response.text().await.map_err(|e| {
+            AgentCliError::new(
+                ErrorCode::BackendFailed,
+                &format!("Failed to read response body: {}", e),
+            )
+        })?;
 
         if text.trim().is_empty() {
             // Return empty value or fallback representation
-            return serde_json::from_str("null")
-                .map_err(|e| AgentCliError::new(ErrorCode::BackendFailed, &format!("Failed to deserialize: {}", e)));
+            return serde_json::from_str("null").map_err(|e| {
+                AgentCliError::new(
+                    ErrorCode::BackendFailed,
+                    &format!("Failed to deserialize: {}", e),
+                )
+            });
         }
 
-        serde_json::from_str(&text)
-            .map_err(|e| AgentCliError::new(ErrorCode::BackendFailed, &format!("Failed to deserialize: {}\nBody: {}", e, text)))
+        serde_json::from_str(&text).map_err(|e| {
+            AgentCliError::new(
+                ErrorCode::BackendFailed,
+                &format!("Failed to deserialize: {}\nBody: {}", e, text),
+            )
+        })
     }
 
-    pub async fn create_session(&self, req: CreateJulesSessionRequest) -> Result<JulesSession, AgentCliError> {
+    pub async fn create_session(
+        &self,
+        req: CreateJulesSessionRequest,
+    ) -> Result<JulesSession, AgentCliError> {
         let body = serde_json::to_value(&req).unwrap();
-        self.request(reqwest::Method::POST, "/sessions", Some(body)).await
+        self.request(reqwest::Method::POST, "/sessions", Some(body))
+            .await
     }
 
-    pub async fn list_sessions(&self, page_size: i32, page_token: Option<&str>) -> Result<Vec<JulesSession>, AgentCliError> {
+    pub async fn list_sessions(
+        &self,
+        page_size: i32,
+        page_token: Option<&str>,
+    ) -> Result<Vec<JulesSession>, AgentCliError> {
         let mut pathname = format!("/sessions?pageSize={}", page_size);
         if let Some(tok) = page_token {
             pathname.push_str(&format!("&pageToken={}", tok));
@@ -186,29 +223,53 @@ impl JulesClient {
         page_size: i32,
         page_token: Option<&str>,
     ) -> Result<Vec<JulesActivity>, AgentCliError> {
-        let mut pathname = format!("/{}/activities?pageSize={}", resource_name(session_id), page_size);
+        let mut pathname = format!(
+            "/{}/activities?pageSize={}",
+            resource_name(session_id),
+            page_size
+        );
         if let Some(tok) = page_token {
             pathname.push_str(&format!("&pageToken={}", tok));
         }
-        let res: ListActivitiesResponse = self.request(reqwest::Method::GET, &pathname, None).await?;
+        let res: ListActivitiesResponse =
+            self.request(reqwest::Method::GET, &pathname, None).await?;
         Ok(res.activities.unwrap_or_default())
     }
 
     pub async fn approve_plan(&self, session_id: &str) -> Result<(), AgentCliError> {
         let pathname = format!("/{}:approvePlan", resource_name(session_id));
-        let _: serde_json::Value = self.request(reqwest::Method::POST, &pathname, Some(serde_json::Value::Object(serde_json::Map::new()))).await?;
+        let _: serde_json::Value = self
+            .request(
+                reqwest::Method::POST,
+                &pathname,
+                Some(serde_json::Value::Object(serde_json::Map::new())),
+            )
+            .await?;
         Ok(())
     }
 
     pub async fn send_message(&self, session_id: &str, prompt: &str) -> Result<(), AgentCliError> {
         let pathname = format!("/{}:sendMessage", resource_name(session_id));
         let mut body = serde_json::Map::new();
-        body.insert("prompt".to_string(), serde_json::Value::String(prompt.to_string()));
-        let _: serde_json::Value = self.request(reqwest::Method::POST, &pathname, Some(serde_json::Value::Object(body))).await?;
+        body.insert(
+            "prompt".to_string(),
+            serde_json::Value::String(prompt.to_string()),
+        );
+        let _: serde_json::Value = self
+            .request(
+                reqwest::Method::POST,
+                &pathname,
+                Some(serde_json::Value::Object(body)),
+            )
+            .await?;
         Ok(())
     }
 
-    pub async fn list_sources(&self, page_size: i32, page_token: Option<&str>) -> Result<Vec<JulesSource>, AgentCliError> {
+    pub async fn list_sources(
+        &self,
+        page_size: i32,
+        page_token: Option<&str>,
+    ) -> Result<Vec<JulesSource>, AgentCliError> {
         let mut pathname = format!("/sources?pageSize={}", page_size);
         if let Some(tok) = page_token {
             pathname.push_str(&format!("&pageToken={}", tok));

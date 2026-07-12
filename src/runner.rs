@@ -1,14 +1,13 @@
+use chrono::Utc;
 use std::collections::HashMap;
-use std::fs::{self, OpenOptions};
+use std::fs::OpenOptions;
 use std::io::{self, Write};
-use std::path::Path;
 use std::process::Stdio;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
-use tokio::process::{Child, Command};
-use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::process::Command;
 use tokio::time::timeout;
-use chrono::Utc;
 
 use crate::errors::{AgentCliError, ErrorCode};
 use crate::redaction::redact_strict;
@@ -65,7 +64,7 @@ pub async fn spawn_process(
         }
     };
 
-    let mut stdin = child.stdin.take();
+    let stdin = child.stdin.take();
     if let Some(data) = options.stdin_data {
         if let Some(mut stdin_ch) = stdin {
             let _ = stdin_ch.write_all(data.as_bytes()).await;
@@ -214,7 +213,10 @@ pub async fn spawn_for_capability(
             let stdout = stdout_handle.await.unwrap_or_default();
             let stderr = stderr_handle.await.unwrap_or_default();
             let output = format!("{}{}", stdout, stderr);
-            Ok((status.success() || !output.is_empty(), redact_strict(&output)))
+            Ok((
+                status.success() || !output.is_empty(),
+                redact_strict(&output),
+            ))
         }
         _ => {
             let _ = child.kill().await;
@@ -341,7 +343,10 @@ impl SessionManager {
             stdin_tx: Some(Arc::new(tokio::sync::Mutex::new(stdin_tx))),
         }));
 
-        self.sessions.write().unwrap().insert(id.clone(), session.clone());
+        self.sessions
+            .write()
+            .unwrap()
+            .insert(id.clone(), session.clone());
 
         let sessions_clone = self.sessions.clone();
         let id_clone = id.clone();
@@ -356,7 +361,11 @@ impl SessionManager {
 
             if let Some(sess_lock) = sessions_clone.read().unwrap().get(&id_clone) {
                 let mut s = sess_lock.write().unwrap();
-                s.status = if code == 0 { "complete".to_string() } else { "failed".to_string() };
+                s.status = if code == 0 {
+                    "complete".to_string()
+                } else {
+                    "failed".to_string()
+                };
                 s.stdin_tx = None;
             }
         });
@@ -400,9 +409,18 @@ impl SessionManager {
     }
 
     pub async fn send_input(&self, id: &str, input: &str) -> Result<(), AgentCliError> {
-        let sess_lock = self.sessions.read().unwrap().get(id).cloned().ok_or_else(|| {
-            AgentCliError::new(ErrorCode::SessionNotFound, &format!("Session not found: {}", id))
-        })?;
+        let sess_lock = self
+            .sessions
+            .read()
+            .unwrap()
+            .get(id)
+            .cloned()
+            .ok_or_else(|| {
+                AgentCliError::new(
+                    ErrorCode::SessionNotFound,
+                    &format!("Session not found: {}", id),
+                )
+            })?;
 
         let stdin_tx_opt = {
             let s = sess_lock.read().unwrap();
@@ -434,9 +452,18 @@ impl SessionManager {
     }
 
     pub async fn kill(&self, id: &str, reason: Option<&str>) -> Result<(), AgentCliError> {
-        let sess_lock = self.sessions.read().unwrap().get(id).cloned().ok_or_else(|| {
-            AgentCliError::new(ErrorCode::SessionNotFound, &format!("Session not found: {}", id))
-        })?;
+        let sess_lock = self
+            .sessions
+            .read()
+            .unwrap()
+            .get(id)
+            .cloned()
+            .ok_or_else(|| {
+                AgentCliError::new(
+                    ErrorCode::SessionNotFound,
+                    &format!("Session not found: {}", id),
+                )
+            })?;
 
         let mut s = sess_lock.write().unwrap();
         s.status = "killed".to_string();

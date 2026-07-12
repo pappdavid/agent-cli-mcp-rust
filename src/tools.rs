@@ -1,21 +1,19 @@
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
-use std::fs::{self, OpenOptions};
-use std::io::{self, Write};
-use std::path::{Path, PathBuf};
+use std::fs::{self};
+use std::path::Path;
 use std::process::Command;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use chrono::Utc;
 
 use crate::config::{canonicalize_path, Config};
 use crate::errors::{AgentCliError, ErrorCode};
-use crate::jules_client::{CreateJulesSessionRequest, JulesClient, JulesSource};
+use crate::jules_client::{CreateJulesSessionRequest, JulesClient};
 use crate::jules_status::{
-    build_jules_status, is_active_normalized_status,
-    normalize_jules_session_state, BuildJulesStatusInput as JulesStatusInput,
-    GithubRepoContext, JulesActivity, JulesPlan, JulesSession, JulesSessionOutput, NormalizedJulesStatus,
+    build_jules_status, is_active_normalized_status, normalize_jules_session_state,
+    BuildJulesStatusInput as JulesStatusInput, GithubRepoContext, NormalizedJulesStatus,
     SourceContext,
 };
 
@@ -23,13 +21,9 @@ pub use crate::jules_status::JulesStatusSummary;
 use crate::policy::{
     assert_is_worktree, assert_not_quarantined, detect_git_context, get_tool_preset,
     merge_tool_permissions, validate_argv, validate_cwd, validate_mode, validate_service,
-    MANDATORY_DENY_OVERLAY,
 };
 use crate::redaction::redact_strict;
-use crate::runner::{
-    spawn_for_capability, spawn_process, ActiveSession, SessionManager, SpawnOptions, SpawnResult,
-};
-use crate::sanity::run_sanity_check;
+use crate::runner::{spawn_for_capability, spawn_process, SessionManager, SpawnOptions};
 use crate::store::{generate_run_id, AgentRun, AgentRunPatch, Store};
 
 // ── Capabilities Discovery ───────────────────────────────────────────────────
@@ -171,17 +165,39 @@ pub async fn discover_capabilities(
                 }
                 // Return single-service filtered view from cache
                 let mut filtered = CapabilityResult {
-                    copilot: None, jules: None,
-                    gemini: None, codex: None, opencode: None, claude: None,
+                    copilot: None,
+                    jules: None,
+                    gemini: None,
+                    codex: None,
+                    opencode: None,
+                    claude: None,
                     probe_timestamp: c.result.probe_timestamp.clone(),
                 };
                 match service {
-                    "copilot" if c.result.copilot.is_some() => { filtered.copilot = c.result.copilot.clone(); return Ok(filtered); }
-                    "jules" if c.result.jules.is_some() => { filtered.jules = c.result.jules.clone(); return Ok(filtered); }
-                    "gemini" if c.result.gemini.is_some() => { filtered.gemini = c.result.gemini.clone(); return Ok(filtered); }
-                    "codex" if c.result.codex.is_some() => { filtered.codex = c.result.codex.clone(); return Ok(filtered); }
-                    "opencode" if c.result.opencode.is_some() => { filtered.opencode = c.result.opencode.clone(); return Ok(filtered); }
-                    "claude" if c.result.claude.is_some() => { filtered.claude = c.result.claude.clone(); return Ok(filtered); }
+                    "copilot" if c.result.copilot.is_some() => {
+                        filtered.copilot = c.result.copilot.clone();
+                        return Ok(filtered);
+                    }
+                    "jules" if c.result.jules.is_some() => {
+                        filtered.jules = c.result.jules.clone();
+                        return Ok(filtered);
+                    }
+                    "gemini" if c.result.gemini.is_some() => {
+                        filtered.gemini = c.result.gemini.clone();
+                        return Ok(filtered);
+                    }
+                    "codex" if c.result.codex.is_some() => {
+                        filtered.codex = c.result.codex.clone();
+                        return Ok(filtered);
+                    }
+                    "opencode" if c.result.opencode.is_some() => {
+                        filtered.opencode = c.result.opencode.clone();
+                        return Ok(filtered);
+                    }
+                    "claude" if c.result.claude.is_some() => {
+                        filtered.claude = c.result.claude.clone();
+                        return Ok(filtered);
+                    }
                     _ => {} // Cache miss for this service, fall through to probe
                 }
             }
@@ -311,11 +327,14 @@ async fn probe_copilot(bin: &str) -> CopilotCapabilities {
     let supports_no_ask_user = combined.contains("--no-ask-user");
     let supports_stream = combined.contains("--stream");
     let supports_interactive_prompt = combined.contains("-i") || combined.contains("--interactive");
-    let supports_fleet_slash_command = combined.contains("/fleet") || combined.contains("fleet mode");
+    let supports_fleet_slash_command =
+        combined.contains("/fleet") || combined.contains("fleet mode");
     let supports_prompt_file = combined.contains("--prompt-file");
 
     if !supports_model_flag {
-        notes.push("--model flag not detected in help; model selection may be unsupported".to_string());
+        notes.push(
+            "--model flag not detected in help; model selection may be unsupported".to_string(),
+        );
     }
     if !supports_allow_all_tools {
         notes.push(
@@ -330,25 +349,75 @@ async fn probe_copilot(bin: &str) -> CopilotCapabilities {
         notes.push("--deny-tool not detected; tool deny lists may be unsupported".to_string());
     }
     if !supports_fleet_slash_command {
-        notes.push("/fleet slash command not confirmed; do not inject /fleet automatically".to_string());
+        notes.push(
+            "/fleet slash command not confirmed; do not inject /fleet automatically".to_string(),
+        );
     }
 
     CopilotCapabilities {
         installed: true,
         version,
         prompt_arg: Some("-p".to_string()),
-        interactive_prompt_arg: if supports_interactive_prompt { Some("-i".to_string()) } else { Some("-i".to_string()) },
-        model_arg: if supports_model_flag { Some("--model".to_string()) } else { None },
-        allow_all_tools_arg: if supports_allow_all_tools { Some("--allow-all-tools".to_string()) } else { None },
-        autopilot_arg: if supports_autopilot { Some("--autopilot".to_string()) } else { None },
-        no_ask_user_arg: if supports_no_ask_user { Some("--no-ask-user".to_string()) } else { None },
-        stream_arg: if supports_stream { Some("--stream".to_string()) } else { None },
-        continue_arg: if supports_continue { Some("--continue".to_string()) } else { None },
-        agent_arg: if supports_custom_agents { Some("--agent".to_string()) } else { None },
-        allow_tool_arg: if supports_allow_tool { Some("--allow-tool".to_string()) } else { None },
-        deny_tool_arg: if supports_deny_tool { Some("--deny-tool".to_string()) } else { None },
-        available_tools_arg: if supports_available_tools { Some("--available-tools".to_string()) } else { None },
-        excluded_tools_arg: if supports_excluded_tools { Some("--excluded-tools".to_string()) } else { None },
+        interactive_prompt_arg: if supports_interactive_prompt {
+            Some("-i".to_string())
+        } else {
+            Some("-i".to_string())
+        },
+        model_arg: if supports_model_flag {
+            Some("--model".to_string())
+        } else {
+            None
+        },
+        allow_all_tools_arg: if supports_allow_all_tools {
+            Some("--allow-all-tools".to_string())
+        } else {
+            None
+        },
+        autopilot_arg: if supports_autopilot {
+            Some("--autopilot".to_string())
+        } else {
+            None
+        },
+        no_ask_user_arg: if supports_no_ask_user {
+            Some("--no-ask-user".to_string())
+        } else {
+            None
+        },
+        stream_arg: if supports_stream {
+            Some("--stream".to_string())
+        } else {
+            None
+        },
+        continue_arg: if supports_continue {
+            Some("--continue".to_string())
+        } else {
+            None
+        },
+        agent_arg: if supports_custom_agents {
+            Some("--agent".to_string())
+        } else {
+            None
+        },
+        allow_tool_arg: if supports_allow_tool {
+            Some("--allow-tool".to_string())
+        } else {
+            None
+        },
+        deny_tool_arg: if supports_deny_tool {
+            Some("--deny-tool".to_string())
+        } else {
+            None
+        },
+        available_tools_arg: if supports_available_tools {
+            Some("--available-tools".to_string())
+        } else {
+            None
+        },
+        excluded_tools_arg: if supports_excluded_tools {
+            Some("--excluded-tools".to_string())
+        } else {
+            None
+        },
         supports_model_flag,
         supports_allow_all_tools,
         supports_allow_tool,
@@ -365,8 +434,13 @@ async fn probe_copilot(bin: &str) -> CopilotCapabilities {
 async fn probe_jules(bin: &str, config: &Config) -> JulesCapabilities {
     let mut notes = Vec::new();
 
-    let help_res = spawn_for_capability(bin, &[String::from("help")], 10000).await.ok();
-    let installed = help_res.as_ref().map(|(success, output)| *success || !output.is_empty()).unwrap_or(false);
+    let help_res = spawn_for_capability(bin, &[String::from("help")], 10000)
+        .await
+        .ok();
+    let installed = help_res
+        .as_ref()
+        .map(|(success, output)| *success || !output.is_empty())
+        .unwrap_or(false);
 
     if !installed {
         return JulesCapabilities {
@@ -393,32 +467,67 @@ async fn probe_jules(bin: &str, config: &Config) -> JulesCapabilities {
         .map(|(_, o)| o.lines().next().unwrap_or("").trim().to_string());
 
     let help_out = help_res.map(|(_, o)| o).unwrap_or_default();
-    let remote_help = spawn_for_capability(bin, &[String::from("remote"), String::from("--help")], 10000)
-        .await
-        .ok()
-        .map(|(_, o)| o)
-        .unwrap_or_default();
-    let remote_new_help = spawn_for_capability(bin, &[String::from("remote"), String::from("new"), String::from("--help")], 10000)
-        .await
-        .ok()
-        .map(|(_, o)| o)
-        .unwrap_or_default();
-    let remote_list_help = spawn_for_capability(bin, &[String::from("remote"), String::from("list"), String::from("--help")], 10000)
-        .await
-        .ok()
-        .map(|(_, o)| o)
-        .unwrap_or_default();
-    let remote_pull_help = spawn_for_capability(bin, &[String::from("remote"), String::from("pull"), String::from("--help")], 10000)
-        .await
-        .ok()
-        .map(|(_, o)| o)
-        .unwrap_or_default();
+    let remote_help = spawn_for_capability(
+        bin,
+        &[String::from("remote"), String::from("--help")],
+        10000,
+    )
+    .await
+    .ok()
+    .map(|(_, o)| o)
+    .unwrap_or_default();
+    let remote_new_help = spawn_for_capability(
+        bin,
+        &[
+            String::from("remote"),
+            String::from("new"),
+            String::from("--help"),
+        ],
+        10000,
+    )
+    .await
+    .ok()
+    .map(|(_, o)| o)
+    .unwrap_or_default();
+    let remote_list_help = spawn_for_capability(
+        bin,
+        &[
+            String::from("remote"),
+            String::from("list"),
+            String::from("--help"),
+        ],
+        10000,
+    )
+    .await
+    .ok()
+    .map(|(_, o)| o)
+    .unwrap_or_default();
+    let remote_pull_help = spawn_for_capability(
+        bin,
+        &[
+            String::from("remote"),
+            String::from("pull"),
+            String::from("--help"),
+        ],
+        10000,
+    )
+    .await
+    .ok()
+    .map(|(_, o)| o)
+    .unwrap_or_default();
 
-    let all_output = format!("{} {} {} {} {}", help_out, remote_help, remote_new_help, remote_list_help, remote_pull_help).to_lowercase();
+    let all_output = format!(
+        "{} {} {} {} {}",
+        help_out, remote_help, remote_new_help, remote_list_help, remote_pull_help
+    )
+    .to_lowercase();
 
-    let supports_remote_new = all_output.contains("remote new") || all_output.contains("remote\tnew");
-    let supports_remote_list = all_output.contains("remote list") || all_output.contains("remote\tlist");
-    let supports_remote_apply = all_output.contains("remote pull") || all_output.contains("remote\tpull");
+    let supports_remote_new =
+        all_output.contains("remote new") || all_output.contains("remote\tnew");
+    let supports_remote_list =
+        all_output.contains("remote list") || all_output.contains("remote\tlist");
+    let supports_remote_apply =
+        all_output.contains("remote pull") || all_output.contains("remote\tpull");
     let supports_explicit_model_flag = all_output.contains("--model");
 
     if !supports_explicit_model_flag {
@@ -440,9 +549,21 @@ async fn probe_jules(bin: &str, config: &Config) -> JulesCapabilities {
         supports_remote_new,
         supports_remote_list,
         supports_remote_apply,
-        remote_new_session_flag: if remote_new_help.contains("--session") { Some("--session".to_string()) } else { None },
-        remote_list_session_flag: if remote_list_help.contains("--session") { Some("--session".to_string()) } else { None },
-        remote_pull_command: if supports_remote_apply { Some("remote pull --session <id> --apply".to_string()) } else { None },
+        remote_new_session_flag: if remote_new_help.contains("--session") {
+            Some("--session".to_string())
+        } else {
+            None
+        },
+        remote_list_session_flag: if remote_list_help.contains("--session") {
+            Some("--session".to_string())
+        } else {
+            None
+        },
+        remote_pull_command: if supports_remote_apply {
+            Some("remote pull --session <id> --apply".to_string())
+        } else {
+            None
+        },
         supports_api: api_configured,
         api_configured,
         supports_explicit_model_flag,
@@ -500,10 +621,18 @@ pub async fn executor_health(
                     });
                 } else {
                     let mut affected = Vec::new();
-                    if !c.supports_deny_tool { affected.push("deny-tool-profiles".to_string()); }
-                    if !c.supports_allow_tool { affected.push("allow-tool-profiles".to_string()); }
-                    if !c.supports_autopilot { affected.push("autopilot".to_string()); }
-                    if !c.supports_fleet_slash_command { affected.push("fleet".to_string()); }
+                    if !c.supports_deny_tool {
+                        affected.push("deny-tool-profiles".to_string());
+                    }
+                    if !c.supports_allow_tool {
+                        affected.push("allow-tool-profiles".to_string());
+                    }
+                    if !c.supports_autopilot {
+                        affected.push("autopilot".to_string());
+                    }
+                    if !c.supports_fleet_slash_command {
+                        affected.push("fleet".to_string());
+                    }
 
                     let safe_profiles = vec![
                         "copilot-file-edit".to_string(),
@@ -514,16 +643,27 @@ pub async fn executor_health(
 
                     results.push(ExecutorHealthResult {
                         service: "copilot".to_string(),
-                        status: if affected.is_empty() { "healthy".to_string() } else { "degraded".to_string() },
+                        status: if affected.is_empty() {
+                            "healthy".to_string()
+                        } else {
+                            "degraded".to_string()
+                        },
                         affected_capabilities: affected.clone(),
                         reason: if !affected.is_empty() {
-                            Some(format!("Detected missing Copilot CLI capabilities: {}", affected.join(", ")))
+                            Some(format!(
+                                "Detected missing Copilot CLI capabilities: {}",
+                                affected.join(", ")
+                            ))
                         } else {
                             None
                         },
                         last_failure: None,
                         safe_profiles_available: safe_profiles,
-                        recommended_fallback: if !affected.is_empty() { Some("jules".to_string()) } else { None },
+                        recommended_fallback: if !affected.is_empty() {
+                            Some("jules".to_string())
+                        } else {
+                            None
+                        },
                     });
                 }
             }
@@ -552,9 +692,15 @@ pub async fn executor_health(
                     });
                 } else {
                     let mut affected = Vec::new();
-                    if !j.supports_remote_new { affected.push("remote-session".to_string()); }
-                    if !j.supports_remote_apply { affected.push("remote-apply".to_string()); }
-                    if !j.api_configured { affected.push("api".to_string()); }
+                    if !j.supports_remote_new {
+                        affected.push("remote-session".to_string());
+                    }
+                    if !j.supports_remote_apply {
+                        affected.push("remote-apply".to_string());
+                    }
+                    if !j.api_configured {
+                        affected.push("api".to_string());
+                    }
 
                     results.push(ExecutorHealthResult {
                         service: "jules".to_string(),
@@ -567,7 +713,10 @@ pub async fn executor_health(
                         },
                         affected_capabilities: affected.clone(),
                         reason: if !affected.is_empty() {
-                            Some(format!("Detected missing Jules capabilities: {}", affected.join(", ")))
+                            Some(format!(
+                                "Detected missing Jules capabilities: {}",
+                                affected.join(", ")
+                            ))
                         } else {
                             None
                         },
@@ -669,7 +818,8 @@ pub async fn test_executor_profile(
         }
     };
 
-    let (_, effective_deny) = merge_tool_permissions(&preset.allow_tools, &preset.deny_tools, false);
+    let (_, effective_deny) =
+        merge_tool_permissions(&preset.allow_tools, &preset.deny_tools, false);
     let mut checks = Vec::new();
 
     // Allows normal file reads check
@@ -678,7 +828,9 @@ pub async fn test_executor_profile(
         .filter(|d| {
             d.as_str() == "read"
                 || d.as_str() == "read(*)"
-                || (d.starts_with("read(") && !d.starts_with("read(.env") && !d.starts_with("read(.git"))
+                || (d.starts_with("read(")
+                    && !d.starts_with("read(.env")
+                    && !d.starts_with("read(.git"))
         })
         .cloned()
         .collect();
@@ -698,13 +850,17 @@ pub async fn test_executor_profile(
     });
 
     // Env writes check
-    let env_write_denied = effective_deny.iter().any(|d| d == "write(.env*)" || d == "write(.env)");
+    let env_write_denied = effective_deny
+        .iter()
+        .any(|d| d == "write(.env*)" || d == "write(.env)");
     checks.push(ProfileCheck {
         name: "denies-env-writes".to_string(),
         passed: env_write_denied,
         expected: "write(.env*) in effective deny list".to_string(),
         details: if !env_write_denied {
-            Some("Env file writes not blocked — unsafe for any delegated file-edit task".to_string())
+            Some(
+                "Env file writes not blocked — unsafe for any delegated file-edit task".to_string(),
+            )
         } else {
             None
         },
@@ -717,7 +873,9 @@ pub async fn test_executor_profile(
         passed: memory_denied,
         expected: "memory in effective deny list".to_string(),
         details: if !memory_denied {
-            Some("Memory writes not blocked — MANDATORY_DENY_OVERLAY may not be applied".to_string())
+            Some(
+                "Memory writes not blocked — MANDATORY_DENY_OVERLAY may not be applied".to_string(),
+            )
         } else {
             None
         },
@@ -731,21 +889,31 @@ pub async fn test_executor_profile(
         name: "denies-provider-mutations".to_string(),
         passed: vercel_prod_denied,
         expected: "vercel deploy --prod and vercel env:* in effective deny list".to_string(),
-        details: if !vercel_prod_denied { Some("Provider mutation commands not blocked".to_string()) } else { None },
+        details: if !vercel_prod_denied {
+            Some("Provider mutation commands not blocked".to_string())
+        } else {
+            None
+        },
     });
 
     // Force push check
-    let force_push_denied = effective_deny.iter().any(|d| d.contains("git push --force"));
+    let force_push_denied = effective_deny
+        .iter()
+        .any(|d| d.contains("git push --force"));
     checks.push(ProfileCheck {
         name: "denies-force-push".to_string(),
         passed: force_push_denied,
         expected: "shell(git push --force) in effective deny list".to_string(),
-        details: if !force_push_denied { Some("Force push not blocked".to_string()) } else { None },
+        details: if !force_push_denied {
+            Some("Force push not blocked".to_string())
+        } else {
+            None
+        },
     });
 
     if service == "copilot" {
         let caps = discover_capabilities("copilot", config, false).await?;
-        let supports_deny = caps.copilot.map_or(false, |c| c.supports_deny_tool);
+        let supports_deny = caps.copilot.is_some_and(|c| c.supports_deny_tool);
         checks.push(ProfileCheck {
             name: "copilot-supports-deny-tool-flag".to_string(),
             passed: supports_deny,
@@ -817,7 +985,7 @@ pub async fn execute_run(
     }
 
     // Standard safety deny list
-    let (merged_allow, merged_deny) = merge_tool_permissions(
+    let (_merged_allow, merged_deny) = merge_tool_permissions(
         args.allow_tools.as_deref().unwrap_or(&[]),
         args.deny_tools.as_deref().unwrap_or(&[]),
         args.allow_env_writes.unwrap_or(false),
@@ -825,7 +993,7 @@ pub async fn execute_run(
 
     if args.service == "copilot" {
         let caps = discover_capabilities("copilot", config, false).await?;
-        let supports_deny = caps.copilot.map_or(false, |c| c.supports_deny_tool);
+        let supports_deny = caps.copilot.is_some_and(|c| c.supports_deny_tool);
 
         if supports_deny {
             for d in &merged_deny {
@@ -848,7 +1016,10 @@ pub async fn execute_run(
 
     let run_id = generate_run_id();
     let (stdout_log, stderr_log) = store.allocate_log_paths(&run_id).map_err(|e| {
-        AgentCliError::new(ErrorCode::BackendFailed, &format!("Failed to create log directories: {}", e))
+        AgentCliError::new(
+            ErrorCode::BackendFailed,
+            &format!("Failed to create log directories: {}", e),
+        )
     })?;
 
     let mut env = HashMap::new();
@@ -884,7 +1055,10 @@ pub async fn execute_run(
     };
 
     store.save(&run).map_err(|e| {
-        AgentCliError::new(ErrorCode::BackendFailed, &format!("Failed to write state store: {}", e))
+        AgentCliError::new(
+            ErrorCode::BackendFailed,
+            &format!("Failed to write state store: {}", e),
+        )
     })?;
 
     let spawn_opts = SpawnOptions {
@@ -903,16 +1077,22 @@ pub async fn execute_run(
 
     match result {
         Ok(res) => {
-            let status_str = if res.exit_code == Some(0) { "complete" } else { "failed" };
-            store.update(
-                &run_id,
-                AgentRunPatch {
-                    status: Some(status_str.to_string()),
-                    ended_at: Some(ended_at.clone()),
-                    exit_code: Some(res.exit_code),
-                    ..Default::default()
-                },
-            ).unwrap();
+            let status_str = if res.exit_code == Some(0) {
+                "complete"
+            } else {
+                "failed"
+            };
+            store
+                .update(
+                    &run_id,
+                    AgentRunPatch {
+                        status: Some(status_str.to_string()),
+                        ended_at: Some(ended_at.clone()),
+                        exit_code: Some(res.exit_code),
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
 
             Ok(json!({
                 "ok": res.exit_code == Some(0),
@@ -924,16 +1104,18 @@ pub async fn execute_run(
             }))
         }
         Err(e) => {
-            store.update(
-                &run_id,
-                AgentRunPatch {
-                    status: Some("failed".to_string()),
-                    ended_at: Some(ended_at),
-                    exit_code: Some(None),
-                    stale_reason: Some(format!("{}", e)),
-                    ..Default::default()
-                },
-            ).unwrap();
+            store
+                .update(
+                    &run_id,
+                    AgentRunPatch {
+                        status: Some("failed".to_string()),
+                        ended_at: Some(ended_at),
+                        exit_code: Some(None),
+                        stale_reason: Some(format!("{}", e)),
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
             Err(e)
         }
     }
@@ -969,7 +1151,7 @@ pub async fn start_run(
         }
     }
 
-    let (merged_allow, merged_deny) = merge_tool_permissions(
+    let (_merged_allow, merged_deny) = merge_tool_permissions(
         args.allow_tools.as_deref().unwrap_or(&[]),
         args.deny_tools.as_deref().unwrap_or(&[]),
         args.allow_env_writes.unwrap_or(false),
@@ -977,7 +1159,7 @@ pub async fn start_run(
 
     if args.service == "copilot" {
         let caps = discover_capabilities("copilot", config, false).await?;
-        if caps.copilot.map_or(false, |c| c.supports_deny_tool) {
+        if caps.copilot.is_some_and(|c| c.supports_deny_tool) {
             for d in &merged_deny {
                 binary_args.push("--deny-tool".to_string());
                 binary_args.push(d.clone());
@@ -989,7 +1171,10 @@ pub async fn start_run(
 
     let run_id = generate_run_id();
     let (stdout_log, stderr_log) = store.allocate_log_paths(&run_id).map_err(|e| {
-        AgentCliError::new(ErrorCode::BackendFailed, &format!("Failed to allocate log paths: {}", e))
+        AgentCliError::new(
+            ErrorCode::BackendFailed,
+            &format!("Failed to allocate log paths: {}", e),
+        )
     })?;
 
     let mut env = HashMap::new();
@@ -1036,10 +1221,16 @@ pub async fn start_run(
     };
 
     let session_id = session_manager
-        .start(bin, &binary_args, spawn_opts, Some(run_id.clone()), &args.service)
+        .start(
+            bin,
+            &binary_args,
+            spawn_opts,
+            Some(run_id.clone()),
+            &args.service,
+        )
         .await?;
 
-    let store_clone = Arc::new(Mutex::new(store.all())); // For callback monitoring
+    let _store_clone = Arc::new(Mutex::new(store.all())); // For callback monitoring
     let run_id_clone = run_id.clone();
     let session_manager_clone = session_manager.clone();
     let store_file_path = store.runs_file.clone();
@@ -1051,7 +1242,7 @@ pub async fn start_run(
             tokio::time::sleep(Duration::from_millis(500)).await;
             if let Some(info) = session_manager_clone.get_session_info(&session_id_clone) {
                 if info.status != "running" {
-                    let mut store_inst = Store::new(store_file_path.parent().unwrap()).unwrap();
+                    let store_inst = Store::new(store_file_path.parent().unwrap()).unwrap();
                     let patch = AgentRunPatch {
                         status: Some(info.status.clone()),
                         ended_at: Some(Utc::now().to_rfc3339()),
@@ -1143,7 +1334,13 @@ pub async fn start_session(
     };
 
     let session_id = session_manager
-        .start(bin, &args.argv, spawn_opts, Some(run_id.clone()), &args.service)
+        .start(
+            bin,
+            &args.argv,
+            spawn_opts,
+            Some(run_id.clone()),
+            &args.service,
+        )
         .await?;
 
     Ok(json!({
@@ -1191,13 +1388,21 @@ pub async fn create_worktree(
     };
 
     fs::create_dir_all(&worktree_parent).map_err(|e| {
-        AgentCliError::new(ErrorCode::BackendFailed, &format!("Failed to create worktree root: {}", e))
+        AgentCliError::new(
+            ErrorCode::BackendFailed,
+            &format!("Failed to create worktree root: {}", e),
+        )
     })?;
 
     // Sanitize task name
-    let safe_task_id = args.task_id.replace(|c: char| !c.is_alphanumeric() && c != '-' && c != '_', "_");
+    let safe_task_id = args
+        .task_id
+        .replace(|c: char| !c.is_alphanumeric() && c != '-' && c != '_', "_");
     let ts_36 = Utc::now().timestamp_millis().to_string();
-    let branch_name = args.branch_name.clone().unwrap_or_else(|| format!("task/{}-{}", safe_task_id, ts_36));
+    let branch_name = args
+        .branch_name
+        .clone()
+        .unwrap_or_else(|| format!("task/{}-{}", safe_task_id, ts_36));
     let worktree_path = Path::new(&worktree_parent)
         .join(format!("{}-{}", safe_task_id, ts_36))
         .to_string_lossy()
@@ -1221,8 +1426,14 @@ pub async fn create_worktree(
 
     let log_dir = Path::new(&config.state_dir).join("worktree-logs");
     fs::create_dir_all(&log_dir).unwrap();
-    let stdout_log = log_dir.join(format!("{}-stdout.log", safe_task_id)).to_string_lossy().to_string();
-    let stderr_log = log_dir.join(format!("{}-stderr.log", safe_task_id)).to_string_lossy().to_string();
+    let stdout_log = log_dir
+        .join(format!("{}-stdout.log", safe_task_id))
+        .to_string_lossy()
+        .to_string();
+    let stderr_log = log_dir
+        .join(format!("{}-stderr.log", safe_task_id))
+        .to_string_lossy()
+        .to_string();
 
     let spawn_opts = SpawnOptions {
         cwd: git_context.repo_root.clone(),
@@ -1238,7 +1449,10 @@ pub async fn create_worktree(
     if result.exit_code != Some(0) {
         return Err(AgentCliError::new(
             ErrorCode::BackendFailed,
-            &format!("git worktree add failed (exit {:?}): {}", result.exit_code, result.stderr),
+            &format!(
+                "git worktree add failed (exit {:?}): {}",
+                result.exit_code, result.stderr
+            ),
         ));
     }
 
@@ -1277,20 +1491,26 @@ pub async fn quarantine_directory(
         "clearedBy": "Remove this file manually or set AGENT_CLI_OVERRIDE_QUARANTINE=1"
     });
 
-    fs::write(&marker_path, serde_json::to_string_pretty(&marker_val).unwrap()).unwrap();
+    fs::write(
+        &marker_path,
+        serde_json::to_string_pretty(&marker_val).unwrap(),
+    )
+    .unwrap();
 
     let mut run_summary = None;
     if let Some(ref rid) = args.run_id {
         if let Some(mut run) = store.get(rid) {
             let ended_at = Utc::now().to_rfc3339();
-            store.update(
-                rid,
-                AgentRunPatch {
-                    status: Some("quarantined".to_string()),
-                    ended_at: Some(ended_at.clone()),
-                    ..Default::default()
-                },
-            ).unwrap();
+            store
+                .update(
+                    rid,
+                    AgentRunPatch {
+                        status: Some("quarantined".to_string()),
+                        ended_at: Some(ended_at.clone()),
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
             run.status = "quarantined".to_string();
             run.ended_at = Some(ended_at);
             run_summary = Some(run);
@@ -1364,7 +1584,19 @@ pub async fn collect_artifacts(
 
     // Changed files list
     let mut changed_files = Vec::new();
-    if let Ok((true, out)) = spawn_for_capability("git", &[String::from("-C"), resolved_cwd.clone(), String::from("diff"), String::from("HEAD"), String::from("--name-only")], 10000).await {
+    if let Ok((true, out)) = spawn_for_capability(
+        "git",
+        &[
+            String::from("-C"),
+            resolved_cwd.clone(),
+            String::from("diff"),
+            String::from("HEAD"),
+            String::from("--name-only"),
+        ],
+        10000,
+    )
+    .await
+    {
         for l in out.lines() {
             if !l.trim().is_empty() {
                 changed_files.push(l.trim().to_string());
@@ -1372,7 +1604,19 @@ pub async fn collect_artifacts(
         }
     }
 
-    if let Ok((true, out)) = spawn_for_capability("git", &[String::from("-C"), resolved_cwd.clone(), String::from("ls-files"), String::from("--others"), String::from("--exclude-standard")], 10000).await {
+    if let Ok((true, out)) = spawn_for_capability(
+        "git",
+        &[
+            String::from("-C"),
+            resolved_cwd.clone(),
+            String::from("ls-files"),
+            String::from("--others"),
+            String::from("--exclude-standard"),
+        ],
+        10000,
+    )
+    .await
+    {
         for l in out.lines() {
             if !l.trim().is_empty() {
                 changed_files.push(l.trim().to_string());
@@ -1382,7 +1626,19 @@ pub async fn collect_artifacts(
 
     let mut diff_summary = None;
     if args.include_diff.unwrap_or(true) {
-        if let Ok((true, out)) = spawn_for_capability("git", &[String::from("-C"), resolved_cwd.clone(), String::from("diff"), String::from("HEAD"), String::from("--stat")], 10000).await {
+        if let Ok((true, out)) = spawn_for_capability(
+            "git",
+            &[
+                String::from("-C"),
+                resolved_cwd.clone(),
+                String::from("diff"),
+                String::from("HEAD"),
+                String::from("--stat"),
+            ],
+            10000,
+        )
+        .await
+        {
             let slice_end = std::cmp::min(out.len(), 5000);
             diff_summary = Some(redact_strict(&out[..slice_end]));
         }
@@ -1406,7 +1662,22 @@ pub async fn collect_artifacts(
 
     let mut pr_urls = Vec::new();
     if args.include_pr_info.unwrap_or(false) {
-        if let Ok((true, out)) = spawn_for_capability(&config.gh_bin, &[String::from("pr"), String::from("list"), String::from("--json"), String::from("url"), String::from("--state"), String::from("open"), String::from("--limit"), String::from("3")], 15000).await {
+        if let Ok((true, out)) = spawn_for_capability(
+            &config.gh_bin,
+            &[
+                String::from("pr"),
+                String::from("list"),
+                String::from("--json"),
+                String::from("url"),
+                String::from("--state"),
+                String::from("open"),
+                String::from("--limit"),
+                String::from("3"),
+            ],
+            15000,
+        )
+        .await
+        {
             if let Ok(parsed) = serde_json::from_str::<Vec<serde_json::Value>>(&out) {
                 for pr in parsed {
                     if let Some(url) = pr.get("url").and_then(|u| u.as_str()) {
@@ -1419,7 +1690,10 @@ pub async fn collect_artifacts(
 
     let run_status = match args.run_id {
         Some(ref rid) => match store.get(rid) {
-            Some(run) => format!("Run {}: status={}, exitCode={:?}", run.id, run.status, run.exit_code),
+            Some(run) => format!(
+                "Run {}: status={}, exitCode={:?}",
+                run.id, run.status, run.exit_code
+            ),
             None => "Run not found".to_string(),
         },
         None => "No run ID provided".to_string(),
@@ -1504,7 +1778,11 @@ pub async fn create_jules_session(
         remote_source: Some(args.source.clone()),
         remote_url: session.url.clone(),
         remote_state: session.state.clone(),
-        normalized_status: Some(normalize_jules_session_state(session.state.as_deref()).as_str().to_string()),
+        normalized_status: Some(
+            normalize_jules_session_state(session.state.as_deref())
+                .as_str()
+                .to_string(),
+        ),
         last_activity_time: Some(Utc::now().to_rfc3339()),
         last_reconciled_at: Some(Utc::now().to_rfc3339()),
         stale_reason: None,
@@ -1547,17 +1825,24 @@ pub async fn list_jules_sessions(
     store: &Store,
 ) -> Result<serde_json::Value, AgentCliError> {
     let client = JulesClient::new(config)?;
-    let sessions = client.list_sessions(args.page_size.unwrap_or(50), None).await?;
+    let sessions = client
+        .list_sessions(args.page_size.unwrap_or(50), None)
+        .await?;
 
     let mut summaries = Vec::new();
     let runs = store.list("jules", "all", Some(100));
 
     for s in sessions {
         let sid = s.id.clone().unwrap_or_default();
-        let matching_run = runs.iter().find(|r| r.remote_session_id.as_deref() == Some(&sid));
+        let matching_run = runs
+            .iter()
+            .find(|r| r.remote_session_id.as_deref() == Some(&sid));
 
         let activities = if args.include_activities.unwrap_or(false) {
-            client.list_activities(&sid, 10, None).await.unwrap_or_default()
+            client
+                .list_activities(&sid, 10, None)
+                .await
+                .unwrap_or_default()
         } else {
             vec![]
         };
@@ -1585,13 +1870,18 @@ pub async fn get_jules_status(
     let session = client.get_session(&args.session_id).await?;
 
     let activities = if args.include_activities.unwrap_or(true) {
-        client.list_activities(&args.session_id, 100, None).await.unwrap_or_default()
+        client
+            .list_activities(&args.session_id, 100, None)
+            .await
+            .unwrap_or_default()
     } else {
         vec![]
     };
 
     let runs = store.list("jules", "all", Some(50));
-    let matching_run = runs.iter().find(|r| r.remote_session_id.as_deref() == Some(&args.session_id));
+    let matching_run = runs
+        .iter()
+        .find(|r| r.remote_session_id.as_deref() == Some(&args.session_id));
 
     let summary = build_jules_status(JulesStatusInput {
         session: Some(session),
@@ -1604,16 +1894,18 @@ pub async fn get_jules_status(
 
     if matching_run.is_some() {
         let ns_str = summary.normalized_status.as_str().to_string();
-        store.update(
-            &matching_run.unwrap().id,
-            AgentRunPatch {
-                normalized_status: Some(ns_str),
-                last_activity_time: summary.latest_activity_time.clone(),
-                last_reconciled_at: Some(Utc::now().to_rfc3339()),
-                remote_state: summary.state.clone(),
-                ..Default::default()
-            },
-        ).unwrap();
+        store
+            .update(
+                &matching_run.unwrap().id,
+                AgentRunPatch {
+                    normalized_status: Some(ns_str),
+                    last_activity_time: summary.latest_activity_time.clone(),
+                    last_reconciled_at: Some(Utc::now().to_rfc3339()),
+                    remote_state: summary.state.clone(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
     }
 
     Ok(serde_json::to_value(&summary).unwrap())
@@ -1628,15 +1920,20 @@ pub async fn approve_jules_plan(
     client.approve_plan(session_id).await?;
 
     let runs = store.list("jules", "all", Some(50));
-    if let Some(r) = runs.into_iter().find(|run| run.remote_session_id.as_deref() == Some(session_id)) {
-        store.update(
-            &r.id,
-            AgentRunPatch {
-                normalized_status: Some("in_progress".to_string()),
-                last_activity_time: Some(Utc::now().to_rfc3339()),
-                ..Default::default()
-            },
-        ).unwrap();
+    if let Some(r) = runs
+        .into_iter()
+        .find(|run| run.remote_session_id.as_deref() == Some(session_id))
+    {
+        store
+            .update(
+                &r.id,
+                AgentRunPatch {
+                    normalized_status: Some("in_progress".to_string()),
+                    last_activity_time: Some(Utc::now().to_rfc3339()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
     }
 
     Ok(json!({ "ok": true, "message": format!("Approved plan for Jules session {}", session_id) }))
@@ -1652,17 +1949,24 @@ pub async fn send_jules_message(
     client.send_message(session_id, prompt).await?;
 
     let runs = store.list("jules", "all", Some(50));
-    if let Some(r) = runs.into_iter().find(|run| run.remote_session_id.as_deref() == Some(session_id)) {
-        store.update(
-            &r.id,
-            AgentRunPatch {
-                last_activity_time: Some(Utc::now().to_rfc3339()),
-                ..Default::default()
-            },
-        ).unwrap();
+    if let Some(r) = runs
+        .into_iter()
+        .find(|run| run.remote_session_id.as_deref() == Some(session_id))
+    {
+        store
+            .update(
+                &r.id,
+                AgentRunPatch {
+                    last_activity_time: Some(Utc::now().to_rfc3339()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
     }
 
-    Ok(json!({ "ok": true, "message": format!("Sent feedback message to Jules session {}", session_id) }))
+    Ok(
+        json!({ "ok": true, "message": format!("Sent feedback message to Jules session {}", session_id) }),
+    )
 }
 
 pub async fn list_jules_pending_actions(
@@ -1683,7 +1987,9 @@ pub async fn list_jules_pending_actions(
             || ns == NormalizedJulesStatus::AwaitingUserFeedback
             || ns == NormalizedJulesStatus::Paused
         {
-            let matching_run = runs.iter().find(|r| r.remote_session_id.as_deref() == Some(&sid));
+            let matching_run = runs
+                .iter()
+                .find(|r| r.remote_session_id.as_deref() == Some(&sid));
             let summary = build_jules_status(JulesStatusInput {
                 session: Some(s),
                 activities: vec![],
@@ -1730,16 +2036,21 @@ pub async fn reconcile_local_jules_runs(
         };
 
         if is_stale {
-            store.update(
-                &r.id,
-                AgentRunPatch {
-                    status: Some("failed".to_string()),
-                    ended_at: Some(Utc::now().to_rfc3339()),
-                    normalized_status: Some("stale_local_run".to_string()),
-                    stale_reason: Some("Remote session does not exist or has already completed/failed".to_string()),
-                    ..Default::default()
-                },
-            ).unwrap();
+            store
+                .update(
+                    &r.id,
+                    AgentRunPatch {
+                        status: Some("failed".to_string()),
+                        ended_at: Some(Utc::now().to_rfc3339()),
+                        normalized_status: Some("stale_local_run".to_string()),
+                        stale_reason: Some(
+                            "Remote session does not exist or has already completed/failed"
+                                .to_string(),
+                        ),
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
             stale_runs.push(r.id);
         }
     }
@@ -1757,7 +2068,10 @@ pub async fn gh_pr_list(cwd: &str, config: &Config) -> Result<serde_json::Value,
         .current_dir(resolved)
         .output()
         .map_err(|e| {
-            AgentCliError::new(ErrorCode::BackendFailed, &format!("Failed to spawn gh CLI: {}", e))
+            AgentCliError::new(
+                ErrorCode::BackendFailed,
+                &format!("Failed to spawn gh CLI: {}", e),
+            )
         })?;
 
     let prs = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -1781,11 +2095,16 @@ pub async fn run_binary_scoped(
     config: &Config,
     store: &Store,
 ) -> Result<serde_json::Value, AgentCliError> {
-    let allowed_scoped = ["copilot", "jules", "gh", "gemini", "codex", "opencode", "claude"];
+    let allowed_scoped = [
+        "copilot", "jules", "gh", "gemini", "codex", "opencode", "claude",
+    ];
     if !allowed_scoped.contains(&args.service.as_str()) {
         return Err(AgentCliError::new(
             ErrorCode::InvalidService,
-            &format!("Invalid service for run_binary_scoped. Allowed: {}", allowed_scoped.join(", ")),
+            &format!(
+                "Invalid service for run_binary_scoped. Allowed: {}",
+                allowed_scoped.join(", ")
+            ),
         ));
     }
 
@@ -1852,16 +2171,22 @@ pub async fn run_binary_scoped(
 
     let result = spawn_process(bin, &binary_args, spawn_opts).await?;
 
-    let status_str = if result.exit_code == Some(0) { "complete" } else { "failed" };
-    store.update(
-        &run_id,
-        AgentRunPatch {
-            status: Some(status_str.to_string()),
-            ended_at: Some(Utc::now().to_rfc3339()),
-            exit_code: Some(result.exit_code),
-            ..Default::default()
-        },
-    ).unwrap();
+    let status_str = if result.exit_code == Some(0) {
+        "complete"
+    } else {
+        "failed"
+    };
+    store
+        .update(
+            &run_id,
+            AgentRunPatch {
+                status: Some(status_str.to_string()),
+                ended_at: Some(Utc::now().to_rfc3339()),
+                exit_code: Some(result.exit_code),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
     Ok(json!({
         "ok": result.exit_code == Some(0),
@@ -1952,16 +2277,22 @@ pub async fn jules_remote_new(
 
     let result = spawn_process(&config.jules_bin, &binary_args, spawn_opts).await?;
 
-    let status_str = if result.exit_code == Some(0) { "complete" } else { "failed" };
-    store.update(
-        &run_id,
-        AgentRunPatch {
-            status: Some(status_str.to_string()),
-            ended_at: Some(Utc::now().to_rfc3339()),
-            exit_code: Some(result.exit_code),
-            ..Default::default()
-        },
-    ).unwrap();
+    let status_str = if result.exit_code == Some(0) {
+        "complete"
+    } else {
+        "failed"
+    };
+    store
+        .update(
+            &run_id,
+            AgentRunPatch {
+                status: Some(status_str.to_string()),
+                ended_at: Some(Utc::now().to_rfc3339()),
+                exit_code: Some(result.exit_code),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
     Ok(json!({
         "ok": result.exit_code == Some(0),
@@ -1995,7 +2326,10 @@ pub async fn jules_remote_list(
         .current_dir(resolved)
         .output()
         .map_err(|e| {
-            AgentCliError::new(ErrorCode::BackendFailed, &format!("Failed to spawn jules remote list: {}", e))
+            AgentCliError::new(
+                ErrorCode::BackendFailed,
+                &format!("Failed to spawn jules remote list: {}", e),
+            )
         })?;
 
     let list_out = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -2058,7 +2392,10 @@ pub async fn jules_remote_apply(
         last_activity_time: None,
         last_reconciled_at: None,
         stale_reason: None,
-        sanitized_command_summary: format!("jules remote pull --session {} --apply", args.session_id),
+        sanitized_command_summary: format!(
+            "jules remote pull --session {} --apply",
+            args.session_id
+        ),
     };
     store.save(&run).unwrap();
 
@@ -2073,16 +2410,22 @@ pub async fn jules_remote_apply(
 
     let result = spawn_process(&config.jules_bin, &binary_args, spawn_opts).await?;
 
-    let status_str = if result.exit_code == Some(0) { "complete" } else { "failed" };
-    store.update(
-        &run_id,
-        AgentRunPatch {
-            status: Some(status_str.to_string()),
-            ended_at: Some(Utc::now().to_rfc3339()),
-            exit_code: Some(result.exit_code),
-            ..Default::default()
-        },
-    ).unwrap();
+    let status_str = if result.exit_code == Some(0) {
+        "complete"
+    } else {
+        "failed"
+    };
+    store
+        .update(
+            &run_id,
+            AgentRunPatch {
+                status: Some(status_str.to_string()),
+                ended_at: Some(Utc::now().to_rfc3339()),
+                exit_code: Some(result.exit_code),
+                ..Default::default()
+            },
+        )
+        .unwrap();
 
     Ok(json!({
         "ok": result.exit_code == Some(0),
@@ -2104,7 +2447,9 @@ pub async fn send_input(
     args: SendInputArgs,
     session_manager: &SessionManager,
 ) -> Result<serde_json::Value, AgentCliError> {
-    session_manager.send_input(&args.session_id, &args.input).await?;
+    session_manager
+        .send_input(&args.session_id, &args.input)
+        .await?;
     Ok(json!({ "ok": true, "bytesWritten": args.input.len() }))
 }
 
@@ -2134,7 +2479,10 @@ pub fn read_output(
             stderr_log = Some(s.stderr_log_path.clone());
             status = Some(s.status.clone());
         } else {
-            return Err(AgentCliError::new(ErrorCode::SessionNotFound, &format!("Session not found: {}", sid)));
+            return Err(AgentCliError::new(
+                ErrorCode::SessionNotFound,
+                &format!("Session not found: {}", sid),
+            ));
         }
     } else if let Some(ref rid) = args.run_id {
         if let Some(run) = store.get(rid) {
@@ -2142,10 +2490,16 @@ pub fn read_output(
             stderr_log = Some(run.stderr_log.clone());
             status = Some(run.status.clone());
         } else {
-            return Err(AgentCliError::new(ErrorCode::SessionNotFound, &format!("Run not found: {}", rid)));
+            return Err(AgentCliError::new(
+                ErrorCode::SessionNotFound,
+                &format!("Run not found: {}", rid),
+            ));
         }
     } else {
-        return Err(AgentCliError::new(ErrorCode::SessionNotFound, "Provide either runId or sessionId"));
+        return Err(AgentCliError::new(
+            ErrorCode::SessionNotFound,
+            "Provide either runId or sessionId",
+        ));
     }
 
     let stream = args.stream.as_deref().unwrap_or("both");
@@ -2275,37 +2629,51 @@ pub async fn kill_session(
     session_manager: &SessionManager,
 ) -> Result<serde_json::Value, AgentCliError> {
     if let Some(live) = session_manager.get_session_info(&args.session_id) {
-        session_manager.kill(&args.session_id, args.reason.as_deref()).await?;
+        session_manager
+            .kill(&args.session_id, args.reason.as_deref())
+            .await?;
         if let Some(ref rid) = live.run_id {
-            store.update(
-                rid,
+            store
+                .update(
+                    rid,
+                    AgentRunPatch {
+                        status: Some("killed".to_string()),
+                        ended_at: Some(Utc::now().to_rfc3339()),
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+        }
+        return Ok(json!({ "ok": true, "message": format!("Session {} killed", args.session_id) }));
+    }
+
+    if let Some(_run) = store.get(&args.session_id) {
+        let live_match = session_manager
+            .list()
+            .into_iter()
+            .find(|s| s.run_id.as_deref() == Some(&args.session_id));
+        if let Some(live) = live_match {
+            session_manager
+                .kill(&live.id, args.reason.as_deref())
+                .await?;
+        }
+        store
+            .update(
+                &args.session_id,
                 AgentRunPatch {
                     status: Some("killed".to_string()),
                     ended_at: Some(Utc::now().to_rfc3339()),
                     ..Default::default()
                 },
-            ).unwrap();
-        }
-        return Ok(json!({ "ok": true, "message": format!("Session {} killed", args.session_id) }));
-    }
-
-    if let Some(run) = store.get(&args.session_id) {
-        let live_match = session_manager.list().into_iter().find(|s| s.run_id.as_deref() == Some(&args.session_id));
-        if let Some(live) = live_match {
-            session_manager.kill(&live.id, args.reason.as_deref()).await?;
-        }
-        store.update(
-            &args.session_id,
-            AgentRunPatch {
-                status: Some("killed".to_string()),
-                ended_at: Some(Utc::now().to_rfc3339()),
-                ..Default::default()
-            },
-        ).unwrap();
+            )
+            .unwrap();
         return Ok(json!({ "ok": true, "message": format!("Run {} killed", args.session_id) }));
     }
 
-    Err(AgentCliError::new(ErrorCode::SessionNotFound, &format!("No session or run found with ID: {}", args.session_id)))
+    Err(AgentCliError::new(
+        ErrorCode::SessionNotFound,
+        &format!("No session or run found with ID: {}", args.session_id),
+    ))
 }
 
 #[derive(Debug, Deserialize)]
@@ -2347,7 +2715,8 @@ pub async fn copilot_run(
         },
         config,
         store,
-    ).await
+    )
+    .await
 }
 
 #[derive(Debug, Deserialize)]
@@ -2385,7 +2754,8 @@ pub async fn copilot_fleet(
         },
         config,
         store,
-    ).await
+    )
+    .await
 }
 
 #[derive(Debug, Deserialize)]
@@ -2421,7 +2791,8 @@ pub async fn copilot_delegate(
         },
         config,
         store,
-    ).await
+    )
+    .await
 }
 
 #[derive(Debug, Deserialize)]
@@ -2498,7 +2869,8 @@ pub async fn copilot_keep_alive(
         config,
         store,
         session_manager,
-    ).await
+    )
+    .await
 }
 
 #[derive(Debug, Deserialize)]
@@ -2527,21 +2899,26 @@ pub async fn copilot_review(
             prompt: Some(format!("/review {}", input.prompt)),
             argv: None,
             timeout_ms: input.timeout_ms,
-            allow_tools: Some(input.allow_tools.unwrap_or_else(|| vec!["read".to_string()])),
+            allow_tools: Some(
+                input
+                    .allow_tools
+                    .unwrap_or_else(|| vec!["read".to_string()]),
+            ),
             deny_tools: input.deny_tools,
             allow_env_writes: None,
             dry_run: None,
         },
         config,
         store,
-    ).await
+    )
+    .await
 }
 
 pub async fn request_jules_verification(
     session_id: &str,
     test_command: &str,
     test_cwd: Option<String>,
-    timeout_ms: Option<u64>,
+    _timeout_ms: Option<u64>,
     config: &Config,
     store: &Store,
 ) -> Result<serde_json::Value, AgentCliError> {
@@ -2562,7 +2939,8 @@ pub async fn request_jules_verification(
         },
         config,
         store,
-    ).await
+    )
+    .await
 }
 
 pub async fn collect_jules_outputs(
@@ -2579,10 +2957,14 @@ pub async fn collect_jules_outputs(
         },
         config,
         store,
-    ).await?;
+    )
+    .await?;
 
     let client = JulesClient::new(config)?;
-    let activities = client.list_activities(session_id, 100, None).await.unwrap_or_default();
+    let activities = client
+        .list_activities(session_id, 100, None)
+        .await
+        .unwrap_or_default();
 
     Ok(json!({
         "ok": true,
@@ -2600,7 +2982,8 @@ pub async fn watch_jules_session(
     config: &Config,
     store: &Store,
 ) -> Result<serde_json::Value, AgentCliError> {
-    let until_set: std::collections::HashSet<&str> = until_states.iter().map(|s| s.as_str()).collect();
+    let until_set: std::collections::HashSet<&str> =
+        until_states.iter().map(|s| s.as_str()).collect();
     let poll_interval = std::time::Duration::from_secs(5);
     let timeout = std::time::Duration::from_millis(timeout_ms.unwrap_or(120_000));
     let started_at = std::time::Instant::now();
@@ -2615,7 +2998,8 @@ pub async fn watch_jules_session(
             },
             config,
             store,
-        ).await?;
+        )
+        .await?;
 
         if let Some(ns) = status_val.get("normalizedStatus").and_then(|v| v.as_str()) {
             if until_set.contains(ns) {
@@ -2626,7 +3010,8 @@ pub async fn watch_jules_session(
         tokio::time::sleep(poll_interval).await;
     }
 
-    Err(AgentCliError::new(ErrorCode::RunTimeout, &format!("Timed out while waiting for Jules session {}.", session_id)))
+    Err(AgentCliError::new(
+        ErrorCode::RunTimeout,
+        &format!("Timed out while waiting for Jules session {}.", session_id),
+    ))
 }
-
-

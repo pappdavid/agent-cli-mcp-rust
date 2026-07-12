@@ -2,24 +2,22 @@ mod config;
 mod errors;
 mod jules_client;
 mod jules_status;
+mod mcp;
 mod policy;
 mod redaction;
+mod registration;
 mod runner;
 mod sanity;
 mod store;
-mod mcp;
 mod tools;
-mod registration;
 
-use serde::{Deserialize, Serialize};
-use serde_json::json;
-use std::collections::HashMap;
-use std::sync::Arc;
 use crate::config::{load_config, Config};
 use crate::errors::AgentCliError;
 use crate::mcp::McpServer;
 use crate::runner::SessionManager;
 use crate::store::Store;
+use serde::Serialize;
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -47,7 +45,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let server = McpServer::new("agent-cli-mcp-rust", "0.1.0", instructions);
 
     // ── Register Resources and Tools ──────────────────────────────────────────
-    registration::register_all(&server, config.clone(), store.clone(), session_manager.clone());
+    registration::register_all(
+        &server,
+        config.clone(),
+        store.clone(),
+        session_manager.clone(),
+    );
 
     // Run the server loops asynchronously
     server.run().await?;
@@ -64,7 +67,7 @@ mod tools_overview {
     pub async fn get_overview(
         repo: Option<String>,
         include_done: bool,
-        include_logs: bool,
+        _include_logs: bool,
         config: &Config,
         store: &Store,
     ) -> Result<OverviewResult, AgentCliError> {
@@ -80,7 +83,8 @@ mod tools_overview {
             page_size: Some(50),
         };
 
-        let j_sessions = tools::list_jules_sessions(list_args, config, store).await
+        let j_sessions = tools::list_jules_sessions(list_args, config, store)
+            .await
             .ok()
             .and_then(|v| v.get("sessions").cloned())
             .and_then(|v| serde_json::from_value::<Vec<tools::JulesStatusSummary>>(v).ok())
@@ -90,7 +94,10 @@ mod tools_overview {
             let status = s.normalized_status.clone();
             let entry = OverviewEntry {
                 service: "jules".to_string(),
-                id: s.session_id.clone().unwrap_or_else(|| s.run_id.clone().unwrap_or_default()),
+                id: s
+                    .session_id
+                    .clone()
+                    .unwrap_or_else(|| s.run_id.clone().unwrap_or_default()),
                 task_id: s.title.clone(),
                 state: status.as_str().to_string(),
                 last_activity: s.latest_activity_time.clone(),
@@ -107,7 +114,9 @@ mod tools_overview {
                 NormalizedJulesStatus::AwaitingUserFeedback | NormalizedJulesStatus::Paused => {
                     awaiting_input.push(entry);
                 }
-                NormalizedJulesStatus::InProgress | NormalizedJulesStatus::Planning | NormalizedJulesStatus::Queued => {
+                NormalizedJulesStatus::InProgress
+                | NormalizedJulesStatus::Planning
+                | NormalizedJulesStatus::Queued => {
                     running.push(entry);
                 }
                 NormalizedJulesStatus::Completed => {
@@ -118,11 +127,12 @@ mod tools_overview {
                 NormalizedJulesStatus::Failed | NormalizedJulesStatus::StaleLocalRun => {
                     let mut e = entry;
                     e.reason = Some(status.as_str().to_string());
-                    e.recommended_action = Some(if status == NormalizedJulesStatus::StaleLocalRun {
-                        "call jules.reconcile_local_runs".to_string()
-                    } else {
-                        "call jules.list_activities for diagnosis".to_string()
-                    });
+                    e.recommended_action =
+                        Some(if status == NormalizedJulesStatus::StaleLocalRun {
+                            "call jules.reconcile_local_runs".to_string()
+                        } else {
+                            "call jules.list_activities for diagnosis".to_string()
+                        });
                     failed_or_stale.push(e);
                 }
                 _ => {}
@@ -164,16 +174,42 @@ mod tools_overview {
         }
 
         let caps = tools::discover_capabilities("all", config, false).await?;
-        let copilot_health = caps.copilot.map(|c| if c.installed { "healthy" } else { "unavailable" }).unwrap_or("unavailable");
-        let jules_health = caps.jules.map(|j| if j.installed { "healthy" } else { "unavailable" }).unwrap_or("unavailable");
+        let copilot_health = caps
+            .copilot
+            .map(|c| {
+                if c.installed {
+                    "healthy"
+                } else {
+                    "unavailable"
+                }
+            })
+            .unwrap_or("unavailable");
+        let jules_health = caps
+            .jules
+            .map(|j| {
+                if j.installed {
+                    "healthy"
+                } else {
+                    "unavailable"
+                }
+            })
+            .unwrap_or("unavailable");
 
         let health = ExecutorHealthSummary {
             copilot: copilot_health.to_string(),
             jules: jules_health.to_string(),
         };
 
-        let recommended_next_action = derive_next_action(&running, &awaiting_input, &failed_or_stale, &health);
-        let markdown = render_markdown(&running, &awaiting_input, &done, &failed_or_stale, &health, &recommended_next_action);
+        let recommended_next_action =
+            derive_next_action(&running, &awaiting_input, &failed_or_stale, &health);
+        let markdown = render_markdown(
+            &running,
+            &awaiting_input,
+            &done,
+            &failed_or_stale,
+            &health,
+            &recommended_next_action,
+        );
 
         Ok(OverviewResult {
             running,
@@ -346,4 +382,3 @@ mod tools_overview {
 }
 
 // ── Expose get_overview ──
-

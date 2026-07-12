@@ -62,7 +62,11 @@ impl AgentCliError {
         }
     }
 
-    pub fn new_with_details(error_code: ErrorCode, message: &str, details: serde_json::Value) -> Self {
+    pub fn new_with_details(
+        error_code: ErrorCode,
+        message: &str,
+        details: serde_json::Value,
+    ) -> Self {
         AgentCliError {
             error_code,
             message: message.to_string(),
@@ -97,6 +101,7 @@ pub fn to_mcp_error_content(err: &(dyn std::error::Error + 'static)) -> serde_js
             error_code: "BACKEND_FAILED".to_string(),
             message: err.to_string(),
             details: None,
-        }).unwrap_or_default()
+        })
+        .unwrap_or_default()
     }
 }

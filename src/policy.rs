@@ -1,20 +1,12 @@
-use serde::Serialize;
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::collections::HashSet;
-use regex::Regex;
-use crate::config::{Config, canonicalize_path};
+use crate::config::{canonicalize_path, Config};
 use crate::errors::{AgentCliError, ErrorCode};
+use regex::Regex;
+use serde::Serialize;
+use std::collections::HashSet;
+use std::path::Path;
+use std::process::Command;
 
-pub const VALID_SERVICES: &[&str] = &[
-    "copilot",
-    "jules",
-    "gemini",
-    "codex",
-    "opencode",
-    "claude",
-];
+pub const VALID_SERVICES: &[&str] = &["copilot", "jules", "gemini", "codex", "opencode", "claude"];
 pub const VALID_MODES: &[&str] = &[
     "prompt",
     "interactive",
@@ -153,7 +145,11 @@ pub fn validate_service(service: &str) -> Result<(), AgentCliError> {
     if !VALID_SERVICES.contains(&service) {
         return Err(AgentCliError::new(
             ErrorCode::InvalidService,
-            &format!("Invalid service \"{}\". Allowed: {}", service, VALID_SERVICES.join(", ")),
+            &format!(
+                "Invalid service \"{}\". Allowed: {}",
+                service,
+                VALID_SERVICES.join(", ")
+            ),
         ));
     }
     Ok(())
@@ -163,7 +159,11 @@ pub fn validate_mode(mode: &str) -> Result<(), AgentCliError> {
     if !VALID_MODES.contains(&mode) {
         return Err(AgentCliError::new(
             ErrorCode::InvalidMode,
-            &format!("Invalid mode \"{}\". Allowed: {}", mode, VALID_MODES.join(", ")),
+            &format!(
+                "Invalid mode \"{}\". Allowed: {}",
+                mode,
+                VALID_MODES.join(", ")
+            ),
         ));
     }
     Ok(())
@@ -186,7 +186,9 @@ pub fn detect_git_context(cwd: &str) -> Option<GitContext> {
         return None;
     }
 
-    let repo_root = String::from_utf8_lossy(&repo_root_out.stdout).trim().to_string();
+    let repo_root = String::from_utf8_lossy(&repo_root_out.stdout)
+        .trim()
+        .to_string();
     let repo_root_canonical = canonicalize_path(&repo_root);
 
     let mut common_dir = String::new();
@@ -196,7 +198,9 @@ pub fn detect_git_context(cwd: &str) -> Option<GitContext> {
         .output()
     {
         if common_dir_out.status.success() {
-            common_dir = String::from_utf8_lossy(&common_dir_out.stdout).trim().to_string();
+            common_dir = String::from_utf8_lossy(&common_dir_out.stdout)
+                .trim()
+                .to_string();
         }
     }
 
@@ -207,12 +211,17 @@ pub fn detect_git_context(cwd: &str) -> Option<GitContext> {
             .output()
         {
             if common_dir_out.status.success() {
-                let parsed = String::from_utf8_lossy(&common_dir_out.stdout).trim().to_string();
+                let parsed = String::from_utf8_lossy(&common_dir_out.stdout)
+                    .trim()
+                    .to_string();
                 let path = Path::new(&parsed);
                 if path.is_absolute() {
                     common_dir = parsed;
                 } else {
-                    common_dir = Path::new(&repo_root).join(path).to_string_lossy().to_string();
+                    common_dir = Path::new(&repo_root)
+                        .join(path)
+                        .to_string_lossy()
+                        .to_string();
                 }
             }
         }
@@ -249,7 +258,7 @@ pub fn validate_cwd(cwd: &str, config: &Config) -> Result<String, AgentCliError>
     let allowed = config.allowed_roots.iter().any(|root| {
         let resolved_root = canonicalize_path(root);
         is_within_root(&resolved, &resolved_root)
-            || git_context.as_ref().map_or(false, |ctx| {
+            || git_context.as_ref().is_some_and(|ctx| {
                 is_within_root(&ctx.repo_root, &resolved_root)
                     || is_within_root(&ctx.canonical_repo_root, &resolved_root)
             })
@@ -288,7 +297,9 @@ pub fn validate_argv(argv: &[String]) -> Result<(), AgentCliError> {
     ]
     .into_iter()
     .collect();
-    let free_text_flag_names: HashSet<&str> = ["-p", "--prompt", "-i", "--interactive"].into_iter().collect();
+    let free_text_flag_names: HashSet<&str> = ["-p", "--prompt", "-i", "--interactive"]
+        .into_iter()
+        .collect();
 
     let mut skip_next_free_text_value = false;
 
@@ -312,7 +323,10 @@ pub fn validate_argv(argv: &[String]) -> Result<(), AgentCliError> {
         if control_char_re.is_match(arg) {
             return Err(AgentCliError::new(
                 ErrorCode::CommandBlocked,
-                &format!("Argument contains control characters and was rejected: {:?}", arg),
+                &format!(
+                    "Argument contains control characters and was rejected: {:?}",
+                    arg
+                ),
             ));
         }
 
@@ -342,7 +356,10 @@ pub fn validate_argv(argv: &[String]) -> Result<(), AgentCliError> {
         if shell_sequence_re.is_match(arg) {
             return Err(AgentCliError::new(
                 ErrorCode::CommandBlocked,
-                &format!("Argument contains shell execution syntax and was rejected: {:?}", arg),
+                &format!(
+                    "Argument contains shell execution syntax and was rejected: {:?}",
+                    arg
+                ),
             ));
         }
     }
@@ -351,9 +368,13 @@ pub fn validate_argv(argv: &[String]) -> Result<(), AgentCliError> {
 }
 
 fn parse_structured_tool_flag(arg: &str) -> Option<(String, String)> {
-    let re = Regex::new(r"^(--allow-tool|--deny-tool|--available-tools|--excluded-tools)=(.+)$").unwrap();
+    let re = Regex::new(r"^(--allow-tool|--deny-tool|--available-tools|--excluded-tools)=(.+)$")
+        .unwrap();
     let caps = re.captures(arg)?;
-    Some((caps.get(1)?.as_str().to_string(), caps.get(2)?.as_str().to_string()))
+    Some((
+        caps.get(1)?.as_str().to_string(),
+        caps.get(2)?.as_str().to_string(),
+    ))
 }
 
 fn validate_structured_arg_value(value: &str, flag_name: &str) -> Result<(), AgentCliError> {
@@ -498,10 +519,7 @@ mod tests {
 
     #[test]
     fn test_validate_argv_unsafe_injection() {
-        let argv = vec![
-            "copilot".to_string(),
-            "run;".to_string(),
-        ];
+        let argv = vec!["copilot".to_string(), "run;".to_string()];
         assert!(validate_argv(&argv).is_err());
     }
 
@@ -515,4 +533,3 @@ mod tests {
         assert!(deny.contains(&"write(.env*)".to_string()));
     }
 }
-

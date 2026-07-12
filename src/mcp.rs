@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::mpsc;
 
-use crate::errors::{AgentCliError, ErrorCode};
+use crate::errors::AgentCliError;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcRequest {
@@ -52,7 +52,7 @@ pub type ToolHandler = Arc<
 
 pub type ResourceHandler = Arc<
     dyn Fn(
-            String, // URI
+            String,                  // URI
             HashMap<String, String>, // Params
         )
             -> Pin<Box<dyn Future<Output = Result<serde_json::Value, AgentCliError>> + Send>>
@@ -102,15 +102,21 @@ impl McpServer {
         }
     }
 
-    pub fn register_tool<F, Fut>(&self, name: &str, description: &str, schema: serde_json::Value, handler: F)
-    where
+    pub fn register_tool<F, Fut>(
+        &self,
+        name: &str,
+        description: &str,
+        schema: serde_json::Value,
+        handler: F,
+    ) where
         F: Fn(serde_json::Value) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<serde_json::Value, AgentCliError>> + Send + 'static,
     {
         let wrapped_handler = Arc::new(move |args| {
             let fut = handler(args);
-            let boxed: Pin<Box<dyn Future<Output = Result<serde_json::Value, AgentCliError>> + Send>> =
-                Box::pin(fut);
+            let boxed: Pin<
+                Box<dyn Future<Output = Result<serde_json::Value, AgentCliError>> + Send>,
+            > = Box::pin(fut);
             boxed
         });
 
@@ -125,15 +131,23 @@ impl McpServer {
         );
     }
 
-    pub fn register_resource<F, Fut>(&self, name: &str, uri_pattern: &str, title: &str, description: &str, mime_type: &str, handler: F)
-    where
+    pub fn register_resource<F, Fut>(
+        &self,
+        name: &str,
+        uri_pattern: &str,
+        title: &str,
+        description: &str,
+        mime_type: &str,
+        handler: F,
+    ) where
         F: Fn(String, HashMap<String, String>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<serde_json::Value, AgentCliError>> + Send + 'static,
     {
         let wrapped_handler = Arc::new(move |uri, params| {
             let fut = handler(uri, params);
-            let boxed: Pin<Box<dyn Future<Output = Result<serde_json::Value, AgentCliError>> + Send>> =
-                Box::pin(fut);
+            let boxed: Pin<
+                Box<dyn Future<Output = Result<serde_json::Value, AgentCliError>> + Send>,
+            > = Box::pin(fut);
             boxed
         });
 
@@ -198,7 +212,7 @@ impl McpServer {
     pub async fn run(&self) -> io::Result<()> {
         let stdin = io::stdin();
         let mut reader = BufReader::new(stdin).lines();
-        let mut stdout = io::stdout();
+        let _stdout = io::stdout();
 
         let stdout_rx = self.stdout_rx.clone();
         let tx = self.stdout_tx.clone();
@@ -323,12 +337,16 @@ async fn handle_request(
             }
         }
         "tools/call" => {
-            let tool_name = req.params.as_ref()
+            let tool_name = req
+                .params
+                .as_ref()
                 .and_then(|p| p.get("name"))
                 .and_then(|n| n.as_str())
                 .unwrap_or("");
 
-            let tool_args = req.params.as_ref()
+            let tool_args = req
+                .params
+                .as_ref()
                 .and_then(|p| p.get("arguments"))
                 .cloned()
                 .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
@@ -390,7 +408,9 @@ async fn handle_request(
             }
         }
         "resources/read" => {
-            let uri = req.params.as_ref()
+            let uri = req
+                .params
+                .as_ref()
                 .and_then(|p| p.get("uri"))
                 .and_then(|u| u.as_str())
                 .unwrap_or("");
