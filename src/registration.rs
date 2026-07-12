@@ -703,15 +703,11 @@ pub fn register_all(
             "properties": {
                 "cwd": { "type": "string" },
                 "mode": { "type": "string" },
-                "model": { "type": "string" },
-                "agent": { "type": "string" },
                 "prompt": { "type": "string" },
-                "promptFile": { "type": "string" },
                 "argv": { "type": "array", "items": { "type": "string" } },
                 "allowTools": { "type": "array", "items": { "type": "string" } },
                 "denyTools": { "type": "array", "items": { "type": "string" } },
                 "timeoutMs": { "type": "integer" },
-                "outputMode": { "type": "string" },
                 "dryRun": { "type": "boolean" }
             },
             "required": ["cwd"]
@@ -739,9 +735,6 @@ pub fn register_all(
             "properties": {
                 "cwd": { "type": "string" },
                 "prompt": { "type": "string" },
-                "model": { "type": "string" },
-                "agent": { "type": "string" },
-                "allowAllTools": { "type": "boolean" },
                 "allowTools": { "type": "array", "items": { "type": "string" } },
                 "denyTools": { "type": "array", "items": { "type": "string" } },
                 "timeoutMs": { "type": "integer" }
@@ -771,9 +764,6 @@ pub fn register_all(
             "properties": {
                 "cwd": { "type": "string" },
                 "prompt": { "type": "string" },
-                "model": { "type": "string" },
-                "agent": { "type": "string" },
-                "allowAllTools": { "type": "boolean" },
                 "allowTools": { "type": "array", "items": { "type": "string" } },
                 "denyTools": { "type": "array", "items": { "type": "string" } },
                 "timeoutMs": { "type": "integer" }
@@ -804,9 +794,6 @@ pub fn register_all(
             "properties": {
                 "cwd": { "type": "string" },
                 "prompt": { "type": "string" },
-                "model": { "type": "string" },
-                "agent": { "type": "string" },
-                "allowAllTools": { "type": "boolean" },
                 "allowTools": { "type": "array", "items": { "type": "string" } },
                 "denyTools": { "type": "array", "items": { "type": "string" } },
                 "timeoutMs": { "type": "integer" },
@@ -839,9 +826,6 @@ pub fn register_all(
             "properties": {
                 "cwd": { "type": "string" },
                 "prompt": { "type": "string" },
-                "model": { "type": "string" },
-                "agent": { "type": "string" },
-                "allowAllTools": { "type": "boolean" },
                 "allowTools": { "type": "array", "items": { "type": "string" } },
                 "denyTools": { "type": "array", "items": { "type": "string" } },
                 "timeoutMs": { "type": "integer" }
@@ -872,12 +856,9 @@ pub fn register_all(
             "properties": {
                 "cwd": { "type": "string" },
                 "prompt": { "type": "string" },
-                "model": { "type": "string" },
-                "agent": { "type": "string" },
                 "allowTools": { "type": "array", "items": { "type": "string" } },
                 "denyTools": { "type": "array", "items": { "type": "string" } },
                 "timeoutMs": { "type": "integer" },
-                "outputMode": { "type": "string" }
             },
             "required": ["cwd", "prompt"]
         }),

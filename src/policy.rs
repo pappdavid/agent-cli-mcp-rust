@@ -229,9 +229,10 @@ pub fn detect_git_context(cwd: &str) -> Option<GitContext> {
 
     let canonical_repo_root = if !common_dir.is_empty() {
         let path = Path::new(&common_dir);
-        let parent = path.parent();
-        if path.file_name().and_then(|n| n.to_str()) == Some(".git") && parent.is_some() {
-            canonicalize_path(&parent.unwrap().to_string_lossy())
+        if path.file_name().and_then(|n| n.to_str()) == Some(".git") {
+            path.parent()
+                .map(|parent| canonicalize_path(&parent.to_string_lossy()))
+                .unwrap_or_else(|| repo_root_canonical.clone())
         } else {
             repo_root_canonical.clone()
         }

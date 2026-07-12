@@ -361,7 +361,7 @@ async fn probe_copilot(bin: &str) -> CopilotCapabilities {
         interactive_prompt_arg: if supports_interactive_prompt {
             Some("-i".to_string())
         } else {
-            Some("-i".to_string())
+            None
         },
         model_arg: if supports_model_flag {
             Some("--model".to_string())
@@ -1892,11 +1892,11 @@ pub async fn get_jules_status(
         local_last_activity_time: matching_run.and_then(|r| r.last_activity_time.clone()),
     });
 
-    if matching_run.is_some() {
+    if let Some(run) = matching_run {
         let ns_str = summary.normalized_status.as_str().to_string();
         store
             .update(
-                &matching_run.unwrap().id,
+                &run.id,
                 AgentRunPatch {
                     normalized_status: Some(ns_str),
                     last_activity_time: summary.latest_activity_time.clone(),
@@ -2469,15 +2469,13 @@ pub fn read_output(
     store: &Store,
     session_manager: &SessionManager,
 ) -> Result<serde_json::Value, AgentCliError> {
-    let mut stdout_log: Option<String> = None;
-    let mut stderr_log: Option<String> = None;
-    let mut status: Option<String> = None;
-
-    if let Some(ref sid) = args.session_id {
-        if let Some(s) = session_manager.get_session_info(sid) {
-            stdout_log = Some(s.stdout_log_path.clone());
-            stderr_log = Some(s.stderr_log_path.clone());
-            status = Some(s.status.clone());
+    let (stdout_log, stderr_log, status) = if let Some(ref sid) = args.session_id {
+        if let Some(session) = session_manager.get_session_info(sid) {
+            (
+                Some(session.stdout_log_path.clone()),
+                Some(session.stderr_log_path.clone()),
+                Some(session.status.clone()),
+            )
         } else {
             return Err(AgentCliError::new(
                 ErrorCode::SessionNotFound,
@@ -2486,9 +2484,11 @@ pub fn read_output(
         }
     } else if let Some(ref rid) = args.run_id {
         if let Some(run) = store.get(rid) {
-            stdout_log = Some(run.stdout_log.clone());
-            stderr_log = Some(run.stderr_log.clone());
-            status = Some(run.status.clone());
+            (
+                Some(run.stdout_log.clone()),
+                Some(run.stderr_log.clone()),
+                Some(run.status.clone()),
+            )
         } else {
             return Err(AgentCliError::new(
                 ErrorCode::SessionNotFound,
@@ -2500,8 +2500,7 @@ pub fn read_output(
             ErrorCode::SessionNotFound,
             "Provide either runId or sessionId",
         ));
-    }
-
+    };
     let stream = args.stream.as_deref().unwrap_or("both");
     let max_chars = args.max_chars.unwrap_or(config.max_output_chars);
 
@@ -2677,21 +2676,15 @@ pub async fn kill_session(
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CopilotRunInput {
     pub cwd: String,
     pub mode: Option<String>,
-    pub model: Option<String>,
-    pub agent: Option<String>,
     pub prompt: Option<String>,
-    pub prompt_file: Option<String>,
     pub argv: Option<Vec<String>>,
     pub allow_tools: Option<Vec<String>>,
-    pub available_tools: Option<Vec<String>>,
-    pub excluded_tools: Option<Vec<String>>,
     pub deny_tools: Option<Vec<String>>,
     pub timeout_ms: Option<u64>,
-    pub output_mode: Option<String>,
     pub dry_run: Option<bool>,
 }
 
@@ -2720,16 +2713,11 @@ pub async fn copilot_run(
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CopilotFleetInput {
     pub cwd: String,
     pub prompt: String,
-    pub model: Option<String>,
-    pub agent: Option<String>,
-    pub allow_all_tools: Option<bool>,
     pub allow_tools: Option<Vec<String>>,
-    pub available_tools: Option<Vec<String>>,
-    pub excluded_tools: Option<Vec<String>>,
     pub deny_tools: Option<Vec<String>>,
     pub timeout_ms: Option<u64>,
 }
@@ -2759,13 +2747,10 @@ pub async fn copilot_fleet(
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CopilotDelegateInput {
     pub cwd: String,
     pub prompt: String,
-    pub model: Option<String>,
-    pub agent: Option<String>,
-    pub allow_all_tools: Option<bool>,
     pub allow_tools: Option<Vec<String>>,
     pub deny_tools: Option<Vec<String>>,
     pub timeout_ms: Option<u64>,
@@ -2796,13 +2781,10 @@ pub async fn copilot_delegate(
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CopilotAutopilotInput {
     pub cwd: String,
     pub prompt: String,
-    pub model: Option<String>,
-    pub agent: Option<String>,
-    pub allow_all_tools: Option<bool>,
     pub allow_tools: Option<Vec<String>>,
     pub deny_tools: Option<Vec<String>>,
     pub timeout_ms: Option<u64>,
@@ -2835,13 +2817,10 @@ pub async fn copilot_autopilot(
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CopilotKeepAliveInput {
     pub cwd: String,
     pub prompt: String,
-    pub model: Option<String>,
-    pub agent: Option<String>,
-    pub allow_all_tools: Option<bool>,
     pub allow_tools: Option<Vec<String>>,
     pub deny_tools: Option<Vec<String>>,
     pub timeout_ms: Option<u64>,
@@ -2874,16 +2853,13 @@ pub async fn copilot_keep_alive(
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CopilotReviewInput {
     pub cwd: String,
     pub prompt: String,
-    pub model: Option<String>,
-    pub agent: Option<String>,
     pub allow_tools: Option<Vec<String>>,
     pub deny_tools: Option<Vec<String>>,
     pub timeout_ms: Option<u64>,
-    pub output_mode: Option<String>,
 }
 
 pub async fn copilot_review(

@@ -58,10 +58,10 @@ fn parse_cmd_parts(raw: Option<String>) -> Option<Vec<String>> {
 }
 
 pub fn canonicalize_path(p: &str) -> String {
-    let expanded = if p.starts_with("~/") {
+    let expanded = if let Some(stripped) = p.strip_prefix("~/") {
         if let Some(home) = env::var_os("HOME") {
             let mut path = PathBuf::from(home);
-            path.push(&p[2..]);
+            path.push(stripped);
             path
         } else {
             PathBuf::from(p)
