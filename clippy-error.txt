@@ -1,0 +1,283 @@
+[1m[92m    Checking[0m agent-cli-mcp-rust v0.1.0 (/home/runner/work/agent-cli-mcp-rust/agent-cli-mcp-rust)
+[1m[91merror[0m[1m: unused import: `ErrorCode`[0m
+ [1m[94m--> [0msrc/mcp.rs:9:36
+  [1m[94m|[0m
+[1m[94m9[0m [1m[94m|[0m use crate::errors::{AgentCliError, ErrorCode};
+  [1m[94m|[0m                                    [1m[91m^^^^^^^^^[0m
+  [1m[94m|[0m
+  [1m[94m= [0m[1mnote[0m: `-D unused-imports` implied by `-D warnings`
+  [1m[94m= [0m[1mhelp[0m: to override `-D warnings` add `#[allow(unused_imports)]`
+
+[1m[91merror[0m[1m: unused import: `std::fs`[0m
+ [1m[94m--> [0msrc/policy.rs:6:5
+  [1m[94m|[0m
+[1m[94m6[0m [1m[94m|[0m use std::fs;
+  [1m[94m|[0m     [1m[91m^^^^^^^[0m
+
+[1m[91merror[0m[1m: unused import: `PathBuf`[0m
+ [1m[94m--> [0msrc/policy.rs:7:23
+  [1m[94m|[0m
+[1m[94m7[0m [1m[94m|[0m use std::path::{Path, PathBuf};
+  [1m[94m|[0m                       [1m[91m^^^^^^^[0m
+
+[1m[91merror[0m[1m: unused import: `std::collections::HashMap`[0m
+ [1m[94m--> [0msrc/registration.rs:2:5
+  [1m[94m|[0m
+[1m[94m2[0m [1m[94m|[0m use std::collections::HashMap;
+  [1m[94m|[0m     [1m[91m^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[91merror[0m[1m: unused import: `self`[0m
+ [1m[94m--> [0msrc/runner.rs:3:15
+  [1m[94m|[0m
+[1m[94m3[0m [1m[94m|[0m use std::fs::{self, OpenOptions};
+  [1m[94m|[0m               [1m[91m^^^^[0m
+
+[1m[91merror[0m[1m: unused import: `std::path::Path`[0m
+ [1m[94m--> [0msrc/runner.rs:5:5
+  [1m[94m|[0m
+[1m[94m5[0m [1m[94m|[0m use std::path::Path;
+  [1m[94m|[0m     [1m[91m^^^^^^^^^^^^^^^[0m
+
+[1m[91merror[0m[1m: unused import: `BufReader`[0m
+ [1m[94m--> [0msrc/runner.rs:9:46
+  [1m[94m|[0m
+[1m[94m9[0m [1m[94m|[0m use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
+  [1m[94m|[0m                                              [1m[91m^^^^^^^^^[0m
+
+[1m[91merror[0m[1m: unused import: `Child`[0m
+  [1m[94m--> [0msrc/runner.rs:10:22
+   [1m[94m|[0m
+[1m[94m10[0m [1m[94m|[0m use tokio::process::{Child, Command};
+   [1m[94m|[0m                      [1m[91m^^^^^[0m
+
+[1m[91merror[0m[1m: unused import: `OpenOptions`[0m
+ [1m[94m--> [0msrc/tools.rs:5:21
+  [1m[94m|[0m
+[1m[94m5[0m [1m[94m|[0m use std::fs::{self, OpenOptions};
+  [1m[94m|[0m                     [1m[91m^^^^^^^^^^^[0m
+
+[1m[91merror[0m[1m: unused imports: `Write` and `self`[0m
+ [1m[94m--> [0msrc/tools.rs:6:15
+  [1m[94m|[0m
+[1m[94m6[0m [1m[94m|[0m use std::io::{self, Write};
+  [1m[94m|[0m               [1m[91m^^^^[0m  [1m[91m^^^^^[0m
+
+[1m[91merror[0m[1m: unused import: `PathBuf`[0m
+ [1m[94m--> [0msrc/tools.rs:7:23
+  [1m[94m|[0m
+[1m[94m7[0m [1m[94m|[0m use std::path::{Path, PathBuf};
+  [1m[94m|[0m                       [1m[91m^^^^^^^[0m
+
+[1m[91merror[0m[1m: unused import: `OnceLock`[0m
+ [1m[94m--> [0msrc/tools.rs:9:29
+  [1m[94m|[0m
+[1m[94m9[0m [1m[94m|[0m use std::sync::{Arc, Mutex, OnceLock};
+  [1m[94m|[0m                             [1m[91m^^^^^^^^[0m
+
+[1m[91merror[0m[1m: unused import: `JulesSource`[0m
+  [1m[94m--> [0msrc/tools.rs:14:67
+   [1m[94m|[0m
+[1m[94m14[0m [1m[94m|[0m use crate::jules_client::{CreateJulesSessionRequest, JulesClient, JulesSource};
+   [1m[94m|[0m                                                                   [1m[91m^^^^^^^^^^^[0m
+
+[1m[91merror[0m[1m: unused imports: `JulesActivity`, `JulesPlan`, `JulesSessionOutput`, and `JulesSession`[0m
+  [1m[94m--> [0msrc/tools.rs:17:67
+   [1m[94m|[0m
+[1m[94m17[0m [1m[94m|[0m     BuildJulesStatusInput as JulesStatusInput, GithubRepoContext, JulesActivity, JulesPlan,
+   [1m[94m|[0m                                                                   [1m[91m^^^^^^^^^^^^^[0m  [1m[91m^^^^^^^^^[0m
+[1m[94m18[0m [1m[94m|[0m     JulesSession, JulesSessionOutput, NormalizedJulesStatus, SourceContext,
+   [1m[94m|[0m     [1m[91m^^^^^^^^^^^^[0m  [1m[91m^^^^^^^^^^^^^^^^^^[0m
+
+[1m[91merror[0m[1m: unused import: `MANDATORY_DENY_OVERLAY`[0m
+  [1m[94m--> [0msrc/tools.rs:25:5
+   [1m[94m|[0m
+[1m[94m25[0m [1m[94m|[0m     MANDATORY_DENY_OVERLAY,
+   [1m[94m|[0m     [1m[91m^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[91merror[0m[1m: unused imports: `ActiveSession` and `SpawnResult`[0m
+  [1m[94m--> [0msrc/tools.rs:29:42
+   [1m[94m|[0m
+[1m[94m29[0m [1m[94m|[0m     spawn_for_capability, spawn_process, ActiveSession, SessionManager, SpawnOptions, SpawnResult,
+   [1m[94m|[0m                                          [1m[91m^^^^^^^^^^^^^[0m                                [1m[91m^^^^^^^^^^^[0m
+
+[1m[91merror[0m[1m: unused import: `crate::sanity::run_sanity_check`[0m
+  [1m[94m--> [0msrc/tools.rs:31:5
+   [1m[94m|[0m
+[1m[94m31[0m [1m[94m|[0m use crate::sanity::run_sanity_check;
+   [1m[94m|[0m     [1m[91m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[91merror[0m[1m: unused import: `Deserialize`[0m
+  [1m[94m--> [0msrc/main.rs:19:13
+   [1m[94m|[0m
+[1m[94m19[0m [1m[94m|[0m use serde::{Deserialize, Serialize};
+   [1m[94m|[0m             [1m[91m^^^^^^^^^^^[0m
+
+[1m[91merror[0m[1m: unused import: `serde_json::json`[0m
+  [1m[94m--> [0msrc/main.rs:20:5
+   [1m[94m|[0m
+[1m[94m20[0m [1m[94m|[0m use serde_json::json;
+   [1m[94m|[0m     [1m[91m^^^^^^^^^^^^^^^^[0m
+
+[1m[91merror[0m[1m: unused import: `std::collections::HashMap`[0m
+  [1m[94m--> [0msrc/main.rs:21:5
+   [1m[94m|[0m
+[1m[94m21[0m [1m[94m|[0m use std::collections::HashMap;
+   [1m[94m|[0m     [1m[91m^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[91merror[0m[1m: variable does not need to be mutable[0m
+   [1m[94m--> [0msrc/mcp.rs:215:13
+    [1m[94m|[0m
+[1m[94m215[0m [1m[94m|[0m         let mut stdout = io::stdout();
+    [1m[94m|[0m             [1m[94m----[0m[1m[91m^^^^^^[0m
+    [1m[94m|[0m             [1m[94m|[0m
+    [1m[94m|[0m             [1m[94mhelp: remove this `mut`[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `-D unused-mut` implied by `-D warnings`
+    [1m[94m= [0m[1mhelp[0m: to override `-D warnings` add `#[allow(unused_mut)]`
+
+[1m[91merror[0m[1m: variable does not need to be mutable[0m
+  [1m[94m--> [0msrc/runner.rs:68:9
+   [1m[94m|[0m
+[1m[94m68[0m [1m[94m|[0m     let mut stdin = child.stdin.take();
+   [1m[94m|[0m         [1m[94m----[0m[1m[91m^^^^^[0m
+   [1m[94m|[0m         [1m[94m|[0m
+   [1m[94m|[0m         [1m[94mhelp: remove this `mut`[0m
+
+[1m[91merror[0m[1m: variable does not need to be mutable[0m
+    [1m[94m--> [0msrc/tools.rs:1250:25
+     [1m[94m|[0m
+[1m[94m1250[0m [1m[94m|[0m                     let mut store_inst = Store::new(store_file_path.parent().unwrap()).unwrap();
+     [1m[94m|[0m                         [1m[94m----[0m[1m[91m^^^^^^^^^^[0m
+     [1m[94m|[0m                         [1m[94m|[0m
+     [1m[94m|[0m                         [1m[94mhelp: remove this `mut`[0m
+
+[1m[91merror[0m[1m: unused variable: `stdout`[0m
+   [1m[94m--> [0msrc/mcp.rs:215:13
+    [1m[94m|[0m
+[1m[94m215[0m [1m[94m|[0m         let mut stdout = io::stdout();
+    [1m[94m|[0m             [1m[91m^^^^^^^^^^[0m [1m[91mhelp: if this is intentional, prefix it with an underscore: `_stdout`[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `-D unused-variables` implied by `-D warnings`
+    [1m[94m= [0m[1mhelp[0m: to override `-D warnings` add `#[allow(unused_variables)]`
+
+[1m[91merror[0m[1m: unused variable: `c`[0m
+   [1m[94m--> [0msrc/registration.rs:583:9
+    [1m[94m|[0m
+[1m[94m583[0m [1m[94m|[0m     let c = config.clone();
+    [1m[94m|[0m         [1m[91m^[0m [1m[91mhelp: if this is intentional, prefix it with an underscore: `_c`[0m
+
+[1m[91merror[0m[1m: unused variable: `include_logs`[0m
+  [1m[94m--> [0msrc/main.rs:72:9
+   [1m[94m|[0m
+[1m[94m72[0m [1m[94m|[0m         include_logs: bool,
+   [1m[94m|[0m         [1m[91m^^^^^^^^^^^^[0m [1m[91mhelp: if this is intentional, prefix it with an underscore: `_include_logs`[0m
+
+[1m[91merror[0m[1m: unused variable: `merged_allow`[0m
+   [1m[94m--> [0msrc/tools.rs:993:10
+    [1m[94m|[0m
+[1m[94m993[0m [1m[94m|[0m     let (merged_allow, merged_deny) = merge_tool_permissions(
+    [1m[94m|[0m          [1m[91m^^^^^^^^^^^^[0m [1m[91mhelp: if this is intentional, prefix it with an underscore: `_merged_allow`[0m
+
+[1m[91merror[0m[1m: unused variable: `merged_allow`[0m
+    [1m[94m--> [0msrc/tools.rs:1159:10
+     [1m[94m|[0m
+[1m[94m1159[0m [1m[94m|[0m     let (merged_allow, merged_deny) = merge_tool_permissions(
+     [1m[94m|[0m          [1m[91m^^^^^^^^^^^^[0m [1m[91mhelp: if this is intentional, prefix it with an underscore: `_merged_allow`[0m
+
+[1m[91merror[0m[1m: unused variable: `store_clone`[0m
+    [1m[94m--> [0msrc/tools.rs:1238:9
+     [1m[94m|[0m
+[1m[94m1238[0m [1m[94m|[0m     let store_clone = Arc::new(Mutex::new(store.all())); // For callback monitoring
+     [1m[94m|[0m         [1m[91m^^^^^^^^^^^[0m [1m[91mhelp: if this is intentional, prefix it with an underscore: `_store_clone`[0m
+
+[1m[91merror[0m[1m: unused variable: `run`[0m
+    [1m[94m--> [0msrc/tools.rs:2654:17
+     [1m[94m|[0m
+[1m[94m2654[0m [1m[94m|[0m     if let Some(run) = store.get(&args.session_id) {
+     [1m[94m|[0m                 [1m[91m^^^[0m [1m[91mhelp: if this is intentional, prefix it with an underscore: `_run`[0m
+
+[1m[91merror[0m[1m: unused variable: `timeout_ms`[0m
+    [1m[94m--> [0msrc/tools.rs:2902:5
+     [1m[94m|[0m
+[1m[94m2902[0m [1m[94m|[0m     timeout_ms: Option<u64>,
+     [1m[94m|[0m     [1m[91m^^^^^^^^^^[0m [1m[91mhelp: if this is intentional, prefix it with an underscore: `_timeout_ms`[0m
+
+[1m[91merror[0m[1m: redundant closure[0m
+  [1m[94m--> [0msrc/config.rs:46:14
+   [1m[94m|[0m
+[1m[94m46[0m [1m[94m|[0m         .map(|r| canonicalize_path(r))
+   [1m[94m|[0m              [1m[91m^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[91mhelp: replace the closure with the function itself: `canonicalize_path`[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mhelp[0m: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.97.0/index.html#redundant_closure
+   [1m[94m= [0m[1mnote[0m: `-D clippy::redundant-closure` implied by `-D warnings`
+   [1m[94m= [0m[1mhelp[0m: to override `-D warnings` add `#[allow(clippy::redundant_closure)]`
+
+[1m[91merror[0m[1m: redundant closure[0m
+   [1m[94m--> [0msrc/jules_status.rs:327:21
+    [1m[94m|[0m
+[1m[94m327[0m [1m[94m|[0m         .filter_map(|act| describe_activity(act))
+    [1m[94m|[0m                     [1m[91m^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m [1m[91mhelp: replace the closure with the function itself: `describe_activity`[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mhelp[0m: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.97.0/index.html#redundant_closure
+
+[1m[91merror[0m[1m: this `map_or` can be simplified[0m
+   [1m[94m--> [0msrc/policy.rs:263:16
+    [1m[94m|[0m
+[1m[94m263[0m [1m[94m|[0m               || git_context.as_ref().map_or(false, |ctx| {
+    [1m[94m|[0m [1m[91m ________________^[0m
+[1m[94m264[0m [1m[94m|[0m [1m[91m|[0m                 is_within_root(&ctx.repo_root, &resolved_root)
+[1m[94m265[0m [1m[94m|[0m [1m[91m|[0m                     || is_within_root(&ctx.canonical_repo_root, &resolved_root)
+[1m[94m266[0m [1m[94m|[0m [1m[91m|[0m             })
+    [1m[94m|[0m [1m[91m|______________^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mhelp[0m: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.97.0/index.html#unnecessary_map_or
+    [1m[94m= [0m[1mnote[0m: `-D clippy::unnecessary-map-or` implied by `-D warnings`
+    [1m[94m= [0m[1mhelp[0m: to override `-D warnings` add `#[allow(clippy::unnecessary_map_or)]`
+[1m[96mhelp[0m: use `is_some_and` instead
+    [1m[94m|[0m
+[1m[94m263[0m [91m- [0m            || git_context.as_ref().[91mmap_or[0m([91mfalse, [0m|ctx| {
+[1m[94m263[0m [92m+ [0m            || git_context.as_ref().[92mis_some_and[0m(|ctx| {
+    [1m[94m|[0m
+
+[1m[91merror[0m[1m: this `map_or` can be simplified[0m
+   [1m[94m--> [0msrc/tools.rs:921:29
+    [1m[94m|[0m
+[1m[94m921[0m [1m[94m|[0m         let supports_deny = caps.copilot.map_or(false, |c| c.supports_deny_tool);
+    [1m[94m|[0m                             [1m[91m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mhelp[0m: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.97.0/index.html#unnecessary_map_or
+[1m[96mhelp[0m: use `is_some_and` instead
+    [1m[94m|[0m
+[1m[94m921[0m [91m- [0m        let supports_deny = caps.copilot.[91mmap_or[0m([91mfalse, [0m|c| c.supports_deny_tool);
+[1m[94m921[0m [92m+ [0m        let supports_deny = caps.copilot.[92mis_some_and[0m(|c| c.supports_deny_tool);
+    [1m[94m|[0m
+
+[1m[91merror[0m[1m: this `map_or` can be simplified[0m
+    [1m[94m--> [0msrc/tools.rs:1001:29
+     [1m[94m|[0m
+[1m[94m1001[0m [1m[94m|[0m         let supports_deny = caps.copilot.map_or(false, |c| c.supports_deny_tool);
+     [1m[94m|[0m                             [1m[91m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+     [1m[94m|[0m
+     [1m[94m= [0m[1mhelp[0m: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.97.0/index.html#unnecessary_map_or
+[1m[96mhelp[0m: use `is_some_and` instead
+     [1m[94m|[0m
+[1m[94m1001[0m [91m- [0m        let supports_deny = caps.copilot.[91mmap_or[0m([91mfalse, [0m|c| c.supports_deny_tool);
+[1m[94m1001[0m [92m+ [0m        let supports_deny = caps.copilot.[92mis_some_and[0m(|c| c.supports_deny_tool);
+     [1m[94m|[0m
+
+[1m[91merror[0m[1m: this `map_or` can be simplified[0m
+    [1m[94m--> [0msrc/tools.rs:1167:12
+     [1m[94m|[0m
+[1m[94m1167[0m [1m[94m|[0m         if caps.copilot.map_or(false, |c| c.supports_deny_tool) {
+     [1m[94m|[0m            [1m[91m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+     [1m[94m|[0m
+     [1m[94m= [0m[1mhelp[0m: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.97.0/index.html#unnecessary_map_or
+[1m[96mhelp[0m: use `is_some_and` instead
+     [1m[94m|[0m
+[1m[94m1167[0m [91m- [0m        if caps.copilot.[91mmap_or[0m([91mfalse, [0m|c| c.supports_deny_tool) {
+[1m[94m1167[0m [92m+ [0m        if caps.copilot.[92mis_some_and[0m(|c| c.supports_deny_tool) {
+     [1m[94m|[0m
+
+[1m[91merror[0m: could not compile `agent-cli-mcp-rust` (bin "agent-cli-mcp-rust") due to 37 previous errors
+[1m[33mwarning[0m: build failed, waiting for other jobs to finish...
+[1m[91merror[0m: could not compile `agent-cli-mcp-rust` (bin "agent-cli-mcp-rust" test) due to 37 previous errors
