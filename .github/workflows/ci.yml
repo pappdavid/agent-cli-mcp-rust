@@ -34,7 +34,7 @@ jobs:
       - name: Apply reviewed transformations
         id: repair
         continue-on-error: true
-        run: python3 scripts/apply_verified_repairs.py 2> repair-error.txt
+        run: python3 scripts/run_verified_repairs.py 2> repair-error.txt
 
       - name: Format and verify repaired source
         id: repaired-verification
@@ -53,7 +53,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if [ "${{ steps.repair.outcome }}" = success ] && [ "${{ steps.repaired-verification.outcome }}" = success ]; then
             rm -f repair-error.txt
-            git add src
+            git add -A src repair-error.txt
             if git diff --cached --quiet; then
               echo "Reviewed transformations produced no source changes"
               exit 1
