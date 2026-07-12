@@ -1,0 +1,44 @@
+name: Rust CI
+
+on:
+  push:
+    branches: [main, repair/verified-build]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Compile all targets
+        run: cargo check --all-targets
+
+      - name: Run Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run tests
+        run: cargo test --all-targets
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Verify binary exists
+        run: test -x target/release/agent-cli-mcp-rust
