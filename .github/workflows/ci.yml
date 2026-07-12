@@ -60,7 +60,6 @@ jobs:
             fi
             git commit -m "fix: make advertised MCP options truthful [verified-repair]"
           else
-            git reset --hard HEAD
             test -s repair-error.txt || echo "repair=${{ steps.repair.outcome }} verification=${{ steps.repaired-verification.outcome }}" > repair-error.txt
             git add repair-error.txt
             git commit -m "chore: capture exact reviewed-repair failure [verified-repair]"
