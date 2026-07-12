@@ -2,7 +2,7 @@ name: Rust CI
 
 on:
   push:
-    branches: [main, repair/verified-build-v2]
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -11,75 +11,6 @@ permissions:
   contents: read
 
 jobs:
-  apply-reviewed-repair:
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.head_ref == 'repair/verified-build-v2'
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout repair branch
-        uses: actions/checkout@v4
-        with:
-          ref: repair/verified-build-v2
-          fetch-depth: 0
-
-      - name: Check whether repair is already applied
-        id: gate
-        run: |
-          if [ -f .repair-applied ]; then
-            echo "apply=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "apply=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Install stable Rust
-        if: steps.gate.outputs.apply == 'true'
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-
-      - name: Apply reviewed transformations
-        if: steps.gate.outputs.apply == 'true'
-        run: python3 scripts/run_verified_repairs.py
-
-      - name: Apply machine-safe Clippy fixes
-        if: steps.gate.outputs.apply == 'true'
-        run: cargo clippy --fix --allow-dirty --allow-staged --all-targets -- -A dead_code || true
-
-      - name: Format repaired source
-        if: steps.gate.outputs.apply == 'true'
-        run: cargo fmt --all
-
-      - name: Compile repaired source
-        if: steps.gate.outputs.apply == 'true'
-        run: cargo check --all-targets
-
-      - name: Lint repaired source
-        if: steps.gate.outputs.apply == 'true'
-        run: cargo clippy --all-targets -- -D warnings -A dead_code
-
-      - name: Test repaired source
-        if: steps.gate.outputs.apply == 'true'
-        run: cargo test --all-targets
-
-      - name: Commit repaired source
-        if: steps.gate.outputs.apply == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          rm -f repair-error.txt clippy-error.txt
-          touch .repair-applied
-          git add -A src .repair-applied repair-error.txt clippy-error.txt
-          if git diff --cached --quiet; then
-            echo "Reviewed transformations produced no source changes"
-            exit 1
-          fi
-          git commit -m "fix: make advertised MCP options truthful [verified-repair]"
-          git push origin HEAD:repair/verified-build-v2
-
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 25
