@@ -1,0 +1,88 @@
+name: Native macOS arm64 recovery proof
+
+on:
+  push:
+    branches: [codex/macos-native-proof-20261106]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.repository == 'pappdavid/agent-cli-mcp-rust'
+    runs-on: macos-15
+    timeout-minutes: 18
+    steps:
+      - name: Checkout reviewed public source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: 0059a7bbc5017be92c1dc46633a543fe95c89bea
+          persist-credentials: false
+
+      - name: Build and record provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = arm64
+          test "$(git rev-parse HEAD)" = 0059a7bbc5017be92c1dc46633a543fe95c89bea
+          CARGO_NET_RETRY=1 CARGO_INCREMENTAL=0 cargo build --locked --release
+          mkdir -p output
+          cp target/release/agent-cli-mcp-rust output/
+          {
+            printf 'source_commit=%s\n' "$(git rev-parse HEAD)"
+            printf 'workflow_run=%s/%s/actions/runs/%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+            printf 'runner_arch=%s\n' "$(uname -m)"
+            printf 'runner_image=%s %s\n' "${ImageOS:-unknown}" "${ImageVersion:-unknown}"
+            rustc --version --verbose
+            cargo --version
+            shasum -a 256 Cargo.lock
+            file output/agent-cli-mcp-rust
+          } > output/PROVENANCE.txt
+          (cd output && shasum -a 256 agent-cli-mcp-rust > SHA256SUMS)
+          cat output/PROVENANCE.txt output/SHA256SUMS
+          tar -C output -czf native-macos-arm64.tar.gz agent-cli-mcp-rust PROVENANCE.txt SHA256SUMS
+
+      - name: Encrypt binary for local verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > recipient.crt <<'ARTIFACT_RECIPIENT'
+          -----BEGIN CERTIFICATE-----
+          MIIEITCCAomgAwIBAgIUNye5/e3zLD3VMAtOh/MF2NJCuqQwDQYJKoZIhvcNAQEL
+          BQAwIDEeMBwGA1UEAwwVY29kZXgtbmF0aXZlLWFydGlmYWN0MB4XDTI2MTEwNjE5
+          MjUxMloXDTI2MTEwODE5MjUxMlowIDEeMBwGA1UEAwwVY29kZXgtbmF0aXZlLWFy
+          dGlmYWN0MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA0BVeXwvcwzhI
+          OIxk3exrEiAG+YL4sqJMxu1scEI5rP08AIubmz53w74B3WIK6qJkZ14G4iYnweTE
+          Pmy4xyVP43A7WUnB7f5mb8nSAzPNOzfjCN+2UvVpyUrOqFUYLHC4pNuUTV3/37Oa
+          tg3nEK8iQFH6JCNteHrMe2rVq9a1X3YrbgGcE8cuFARy189cSDhsW/BLQiMEBu/y
+          6ATm4nBgm7hOPCtEC9UM2AFHKbiGUhO6wRUrxyyjLp05aKzQDSNpd3ygrGk+d2Iq
+          r4rQJuBVBdJS6US8aCeL6REpTwBwOed5RHJb+CAhQLsK7m6vFhh0z0ciYs27Lyxb
+          byLdThkkboesX2PHw6J6dSKq+VmJI4YOCbkXyzkDceiLYZVGUkdgzKoU2z1a0l8a
+          ZNYgRIzKmQJNAFWMNMx1WGqghsAILIw5pyU55poOp7kEXMEDiE/XIQyMIyJKp+yA
+          cFrL4erLAtsIiQ6ZQjSP/fNSNS69/WUlDjSyHzOW8QO2URQHIoZ3AgMBAAGjUzBR
+          MB0GA1UdDgQWBBScqbUp39ntHVYzhyOs/Vw120p/ZDAfBgNVHSMEGDAWgBScqbUp
+          39ntHVYzhyOs/Vw120p/ZDAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3DQEBCwUA
+          A4IBgQA0Sv/AwEkCAdnne26Z/CbJAMdL9ZU7Jxz08w4h/9h6tPtpwT6XtY1deKw1
+          bMrDxMLi0utYB4pKmczobL0OWApQOpSxKazveJ15ruwZuN3LFM4xSvJBcVH9kx8Z
+          EgQKNXrvo1SlFTOFKotadqCbcZd5uaRvX4PLp6CtAZIkelDpj8+LaDtmuP/bonTO
+          xT3cO6rJyvFmfov94FwbE4VApQ7GhQMkFYDvCGARUAaMjxDqNIX8yP8DQy+iTMZw
+          5AFMz4KPJpQOTorWE/A76CgNLI7Pcwd4io6Ivkxo3DTELqjIAvmM09RZ0rmWq17n
+          hIh5Lm1T2/HfrlHTMFetk7jU2YA7yfU1gYzwykrZkXP+EpNO8JlkFhHJuDLVA0JY
+          2TJJNuYKSRL75x7wSLwH6UtrWSa0RNef1gR1PhKNiGp5TKt8kI+ZNNfkH/Rd+JQP
+          rWkAEoXIaYvRUuTFN4J/frd79yNgRU2XI3KXOirtOh+6BAjbfHn4V6Z4fkTlzcnO
+          yF4xwOc=
+          -----END CERTIFICATE-----
+          ARTIFACT_RECIPIENT
+          ci_openssl="$(brew --prefix openssl@3)/bin/openssl"
+          test -x "$ci_openssl"
+          "$ci_openssl" cms -encrypt -binary -aes-256-cbc -outform DER \
+            -in native-macos-arm64.tar.gz -out native-macos-arm64.tar.gz.cms recipient.crt
+          shasum -a 256 native-macos-arm64.tar.gz.cms
+
+      - name: Upload encrypted build artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: native-macos-arm64-encrypted
+          path: native-macos-arm64.tar.gz.cms
+          if-no-files-found: error
+          retention-days: 1
